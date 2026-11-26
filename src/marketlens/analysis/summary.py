@@ -9,7 +9,7 @@ from typing import Any
 
 import pandas as pd
 
-from marketlens.analysis.indicators import rsi, sma
+from marketlens.analysis.indicators import bollinger, ema, macd, rsi, sma
 from marketlens.analysis.stats import (
     aligned_total_returns,
     annualized_volatility,
@@ -40,6 +40,94 @@ class BenchmarkComparison:
 
 
 @dataclass(frozen=True, slots=True)
+class IndicatorSnapshot:
+    """Latest values of the secondary indicators; ``None`` where history is too short."""
+
+    ema_20: float | None
+    macd: float | None
+    macd_signal: float | None
+    macd_histogram: float | None
+    bb_upper: float | None
+    bb_middle: float | None
+    bb_lower: float | None
+
+
+SIGNAL_LOOKBACK = 5
+"""Sessions to look back for crossover signals."""
+
+
+def signals(close: pd.Series) -> tuple[str, ...]:
+    """Short sentences for conditions worth a look; empty when nothing stands out.
+
+    Checked: close outside the Bollinger Bands, MACD crossing its signal line in the last
+    :data:`SIGNAL_LOOKBACK` sessions, RSI above 70 or below 30, SMA 50 crossing SMA 200 in
+    the last :data:`SIGNAL_LOOKBACK` sessions.
+    """
+    found: list[str] = []
+    if close.empty:
+        return ()
+    last = float(close.iloc[-1])
+
+    bands = bollinger(close, 20)
+    upper, lower = _last(bands["upper"]), _last(bands["lower"])
+    if upper is not None and last > upper:
+        found.append("Price closed above the upper Bollinger Band (20, 2 std)")
+    elif lower is not None and last < lower:
+        found.append("Price closed below the lower Bollinger Band (20, 2 std)")
+
+    cross = _recent_cross(macd(close)["histogram"], min_abs=last * 0.0005)
+    if cross is not None:
+        days, direction = cross
+        found.append(f"MACD crossed {direction} its signal line {_sessions_ago(days)}")
+
+    rsi_now = _last(rsi(close, 14))
+    if rsi_now is not None and rsi_now >= 70:
+        found.append(f"RSI 14 at {rsi_now:.0f}: overbought territory (≥ 70)")
+    elif rsi_now is not None and rsi_now <= 30:
+        found.append(f"RSI 14 at {rsi_now:.0f}: oversold territory (≤ 30)")
+
+    cross = _recent_cross(sma(close, 50) - sma(close, 200), min_abs=0.0)
+    if cross is not None:
+        days, direction = cross
+        name = "Golden cross" if direction == "above" else "Death cross"
+        found.append(f"{name}: SMA 50 moved {direction} SMA 200 {_sessions_ago(days)}")
+    return tuple(found)
+
+
+CROSS_RUN = 3
+"""Sessions the difference must have spent on the other side for a sign change to count."""
+
+
+def _recent_cross(difference: pd.Series, min_abs: float) -> tuple[int, str] | None:
+    """Return (sessions ago, 'above'|'below') if ``difference`` changed sign recently.
+
+    A change counts only if the previous :data:`CROSS_RUN` sessions were all on the other
+    side (zero counts as either side) and the new value's magnitude is at least ``min_abs``,
+    so a line flickering around zero is not reported as a crossover every day.
+    """
+    values = difference.dropna().to_numpy(dtype="float64")
+    for ago in range(SIGNAL_LOOKBACK):
+        index = len(values) - 1 - ago
+        if index < CROSS_RUN:
+            return None
+        current = values[index]
+        run = values[index - CROSS_RUN : index]
+        if abs(current) < min_abs:
+            continue
+        if current > 0 and (run <= 0).all():
+            return ago, "above"
+        if current < 0 and (run >= 0).all():
+            return ago, "below"
+    return None
+
+
+def _sessions_ago(days: int) -> str:
+    if days == 0:
+        return "today"
+    return "1 session ago" if days == 1 else f"{days} sessions ago"
+
+
+@dataclass(frozen=True, slots=True)
 class TickerSummary:
     """Everything the CLI and MCP server report about one symbol."""
 
@@ -54,6 +142,8 @@ class TickerSummary:
     sma_50: float | None
     sma_200: float | None
     rsi_14: float | None
+    indicators: IndicatorSnapshot
+    signals: tuple[str, ...]
     benchmark: BenchmarkComparison | None = None
     """Present only when a benchmark symbol was requested."""
 
@@ -66,6 +156,7 @@ class TickerSummary:
         """Return a JSON-serialisable mapping (datetimes as ISO strings, NaN as ``None``)."""
         data = {"symbol": self.symbol, **_clean(dataclasses.asdict(self))}
         data["quote"]["as_of"] = self.quote.as_of.isoformat()
+        data["signals"] = list(self.signals)
         return data
 
 
@@ -147,9 +238,25 @@ def _summarize_with_close(
         sma_50=_last(sma(close, 50)),
         sma_200=_last(sma(close, 200)),
         rsi_14=_last(rsi(close, 14)),
+        indicators=_snapshot(close),
+        signals=signals(close),
         benchmark=comparison,
     )
     return summary, close
+
+
+def _snapshot(close: pd.Series) -> IndicatorSnapshot:
+    macd_frame = macd(close)
+    bands = bollinger(close, 20)
+    return IndicatorSnapshot(
+        ema_20=_last(ema(close, 20)),
+        macd=_last(macd_frame["macd"]),
+        macd_signal=_last(macd_frame["signal"]),
+        macd_histogram=_last(macd_frame["histogram"]),
+        bb_upper=_last(bands["upper"]),
+        bb_middle=_last(bands["middle"]),
+        bb_lower=_last(bands["lower"]),
+    )
 
 
 def compare(

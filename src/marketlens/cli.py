@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Annotated, Any, get_args
 
 import typer
-from rich.console import Console
+from rich.console import Console, Group
 
 from marketlens import __version__
 from marketlens.analysis.summary import compare as compare_symbols
@@ -24,6 +24,7 @@ from marketlens.report.brief import build_brief, quote_to_dict
 from marketlens.report.tables import (
     brief_renderable,
     comparison_table,
+    indicator_table,
     portfolio_table,
     quote_table,
     summary_table,
@@ -140,13 +141,17 @@ def analyze(
     symbol: Annotated[str, typer.Argument(help="Ticker symbol.")],
     period: PeriodOption = "1y",
     benchmark: BenchmarkOption = None,
+    indicators: Annotated[
+        bool, typer.Option("--indicators", "-i", help="Also show EMA, MACD and Bollinger Bands.")
+    ] = False,
 ) -> None:
     """Return, risk, trend indicators and fundamentals for one symbol."""
     window = _parse_period(period)
 
     def action() -> None:
         summary = summarize(symbol, get_provider(state.no_cache), window, benchmark)
-        _emit(summary.to_dict(), summary_table(summary))
+        panel = summary_table(summary)
+        _emit(summary.to_dict(), Group(panel, indicator_table(summary)) if indicators else panel)
 
     _run(action)
 

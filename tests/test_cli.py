@@ -158,3 +158,16 @@ def test_portfolio_benchmark_flag_and_default(tmp_path: Path) -> None:
     assert json.loads(result.output)["benchmark"]["symbol"] == "VTI"
     result = runner.invoke(cli.app, ["--json", "portfolio", str(EXAMPLE)])
     assert json.loads(result.output)["benchmark"] is None
+
+
+def test_analyze_json_includes_indicators_and_signals() -> None:
+    result = runner.invoke(cli.app, ["--json", "analyze", "AAPL"])
+    data = json.loads(result.output)
+    assert "ema_20" in data["indicators"] and isinstance(data["signals"], list)
+
+
+def test_analyze_indicators_flag_adds_block() -> None:
+    plain = runner.invoke(cli.app, ["analyze", "AAPL"]).output
+    assert "MACD" not in plain
+    detailed = runner.invoke(cli.app, ["analyze", "AAPL", "--indicators"]).output
+    assert "MACD" in detailed and "EMA 20" in detailed

@@ -173,3 +173,25 @@ def test_portfolio_benchmark_line_only_when_present() -> None:
     assert "Benchmark" not in plain
     bench = render(portfolio_table(value_portfolio(portfolio, prov, benchmark="SPY")))
     assert "Benchmark SPY" in bench and "+2.04%" in bench and "beta" in bench.lower()
+
+
+def test_signals_row_only_when_signals_exist() -> None:
+    from marketlens.data.fake import make_history
+
+    calm = [100.0 + (0.3 if i % 2 else -0.3) for i in range(60)]
+    hot = [100.0] * 40 + [104.0, 109.0, 115.0]
+    prov = FakeProvider(
+        quotes={"CALM": make_quote("CALM", 100.3, 99.7), "HOT": make_quote("HOT", 115.0, 109.0)},
+        histories={"CALM": make_history("CALM", calm), "HOT": make_history("HOT", hot)},
+        fundamentals={"CALM": make_fundamentals("CALM"), "HOT": make_fundamentals("HOT")},
+    )
+    assert "Signals" not in render(summary_table(summarize("CALM", prov, "6mo")))
+    text = render(summary_table(summarize("HOT", prov, "6mo")))
+    assert "Signals" in text and "Bollinger" in text
+
+
+def test_indicator_table_lists_ema_macd_and_bands() -> None:
+    from marketlens.report.tables import indicator_table
+
+    text = render(indicator_table(summarize("AAPL", provider(), "1mo")))
+    assert "EMA 20" in text and "MACD" in text and "Bollinger" in text

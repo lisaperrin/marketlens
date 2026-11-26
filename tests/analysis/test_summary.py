@@ -116,3 +116,55 @@ def test_compare_passes_benchmark_to_every_summary() -> None:
     assert all(
         s.benchmark is not None and s.benchmark.symbol == "SPY" for s in comparison.summaries
     )
+
+
+# --- indicators and signals ----------------------------------------------------------------
+
+
+def test_summary_carries_indicator_snapshot() -> None:
+    from marketlens.analysis.summary import IndicatorSnapshot
+
+    closes = [100.0 + i for i in range(60)]
+    summary = summarize("AAPL", provider_with("AAPL", closes))
+    snap = summary.indicators
+    assert isinstance(snap, IndicatorSnapshot)
+    assert snap.ema_20 is not None and snap.macd is not None and snap.bb_upper is not None
+    assert snap.bb_lower is not None and snap.bb_lower < closes[-1] < snap.bb_upper
+    data = summary.to_dict()
+    assert set(data["indicators"]) == {
+        "ema_20",
+        "macd",
+        "macd_signal",
+        "macd_histogram",
+        "bb_upper",
+        "bb_middle",
+        "bb_lower",
+    }
+    assert isinstance(data["signals"], list)
+
+
+def test_short_history_has_none_indicators_and_no_signals() -> None:
+    summary = summarize("AAPL", provider_with("AAPL", [100.0, 101.0, 100.5, 101.5, 102.0]))
+    assert summary.indicators.ema_20 is None
+    assert summary.indicators.macd is None
+    assert summary.signals == ()
+
+
+def test_signals_flag_overbought_rsi() -> None:
+    closes = [100.0 + i for i in range(40)]
+    summary = summarize("AAPL", provider_with("AAPL", closes))
+    assert any("overbought" in s for s in summary.signals)
+
+
+def test_signals_flag_price_outside_bollinger_band_and_macd_cross() -> None:
+    closes = [100.0] * 40 + [104.0, 109.0, 115.0]
+    summary = summarize("AAPL", provider_with("AAPL", closes))
+    joined = " | ".join(summary.signals)
+    assert "upper Bollinger" in joined
+    assert "MACD crossed above" in joined
+
+
+def test_calm_series_has_no_signals() -> None:
+    closes = [100.0 + (0.3 if i % 2 else -0.3) for i in range(60)]
+    summary = summarize("AAPL", provider_with("AAPL", closes))
+    assert summary.signals == ()

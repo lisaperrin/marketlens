@@ -4,6 +4,7 @@ from marketlens.report.brief import Brief, build_brief
 from marketlens.report.tables import (
     brief_renderable,
     comparison_table,
+    indicator_table,
     portfolio_table,
     quote_table,
     summary_table,
@@ -14,6 +15,7 @@ __all__ = [
     "brief_renderable",
     "build_brief",
     "comparison_table",
+    "indicator_table",
     "portfolio_table",
     "quote_table",
     "summary_table",

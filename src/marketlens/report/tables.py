@@ -124,6 +124,9 @@ def summary_table(summary: TickerSummary) -> RenderableType:
     ]
     for label, value in rows:
         table.add_row(label, value)
+    if summary.signals:
+        table.add_section()
+        table.add_row("Signals", Text("\n".join(summary.signals), style="yellow"))
     if (bench := summary.benchmark) is not None:
         table.add_section()
         table.add_row(
@@ -134,6 +137,36 @@ def summary_table(summary: TickerSummary) -> RenderableType:
     table.add_section()
     table.add_row("Data as of", Text(f"{format_as_of(quote.as_of)} (delayed)", style="dim"))
     return Panel(table, title=f"[bold]{quote.symbol}[/bold] · {quote.name}", expand=False)
+
+
+def indicator_table(summary: TickerSummary) -> Table:
+    """EMA, MACD and Bollinger Band values; shown with ``analyze --indicators``."""
+    snap = summary.indicators
+    table = _table(f"Indicators · {summary.symbol}")
+    _col(table, "Indicator", style="dim")
+    _col(table, "Value", justify="right")
+    _col(table, "Note", style="dim")
+    last = summary.last_close
+    table.add_row("EMA 20", _num(snap.ema_20), _above_below(last, snap.ema_20))
+    table.add_row("MACD (12, 26)", _num(snap.macd, 3), "")
+    table.add_row("MACD signal (9)", _num(snap.macd_signal, 3), "")
+    table.add_row(
+        "MACD histogram",
+        _num(snap.macd_histogram, 3),
+        ""
+        if snap.macd_histogram is None
+        else ("bullish" if snap.macd_histogram > 0 else "bearish"),
+    )
+    table.add_row("Bollinger upper (20, 2 std)", _num(snap.bb_upper), "")
+    table.add_row("Bollinger middle", _num(snap.bb_middle), _above_below(last, snap.bb_middle))
+    table.add_row("Bollinger lower", _num(snap.bb_lower), "")
+    return table
+
+
+def _above_below(price: float, level: float | None) -> str:
+    if level is None:
+        return ""
+    return "price above" if price > level else "price below"
 
 
 def comparison_table(comparison: Comparison) -> RenderableType:
