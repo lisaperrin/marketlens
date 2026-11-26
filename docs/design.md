@@ -103,3 +103,68 @@ hooks/       hooks.json + scripts/ (SessionStart cache status, UserPromptSubmit 
 
 - Exact rich table styling.
 - Column order in JSON output, as long as field names match the dataclasses.
+
+---
+
+# v0.2 additions — benchmark, indicators, alerts
+
+**Date:** 2026-11-26 · **Status:** approved for build
+
+## Principle
+
+Nothing new appears in default output unless the user asks for it or it says something.
+Today's `analyze`, `compare` and `portfolio` output is unchanged when no new option is used.
+
+## 1. Benchmark (opt-in)
+
+- `--benchmark SYMBOL` / `-b` on `analyze`, `compare` and `portfolio`; MCP tools take an
+  optional `benchmark` argument. `portfolio.toml` may set `benchmark = "VWCE.DE"` as the
+  default for the portfolio view only.
+- Per ticker, over the same period: benchmark total return, **excess return** (ticker minus
+  benchmark) and **beta** (covariance of daily returns over benchmark variance, aligned on
+  shared dates). Shown as extra rows in the analyze panel and extra columns in compare.
+- Per portfolio: benchmark day change next to the portfolio day change, and a
+  **weighted beta** (sum of position weight × position beta over the period). Shown as one
+  line under the portfolio table. Portfolio return since purchase is *not* compared, because
+  purchase dates are unknown.
+
+## 2. Indicators (EMA, MACD, Bollinger Bands)
+
+- Pure functions in `analysis/indicators.py`: `ema(close, span)`, `macd(close, 12, 26, 9)`
+  returning a frame with `macd`, `signal`, `histogram`; `bollinger(close, 20, 2.0)` returning
+  `middle`, `upper`, `lower`. Known-answer tests for each.
+- `TickerSummary.indicators` holds the latest values (always in JSON and MCP output);
+  `analyze --indicators` renders them as a second block in the terminal.
+- `TickerSummary.signals` is a tuple of short sentences that are only produced when notable:
+  price outside the Bollinger bands, MACD crossing its signal line within the last 5 sessions,
+  RSI above 70 or below 30, SMA 50 crossing SMA 200 within the last 5 sessions. The panel shows
+  a "Signals" row only when the tuple is non-empty.
+
+## 3. Alerts
+
+- `marketlens alerts [--watchlist A,B] [--portfolio portfolio.toml] [--rules alerts.toml]`
+  prints only what crossed, one line per alert, and nothing (plus a "no alerts" line) otherwise.
+  `--json` lists alerts as dicts. Exit code is 0 either way; `--fail-on-alert` returns 3 when
+  anything fired, for cron use.
+- Default rules for every symbol: RSI ≥ 70 or ≤ 30; absolute day change ≥ 5 %; close outside
+  the Bollinger bands. `alerts.toml` overrides or adds per-symbol thresholds:
+
+  ```toml
+  [defaults]
+  rsi_above = 70
+  rsi_below = 30
+  day_change_abs = 5.0        # percent
+
+  [[rules]]
+  symbol = "NVD.DE"
+  price_below = 120.0
+  price_above = 200.0
+  ```
+
+- New MCP tool `check_alerts(symbols, rules_path=None, portfolio_path=None)`; the
+  `market-brief` skill mentions it; a new `check-alerts` skill wraps it.
+
+## Non-goals (still)
+
+No scheduled delivery, no persistence of fired alerts, no notifications. `alerts` is the
+building block a cron job or a later delivery feature calls.
