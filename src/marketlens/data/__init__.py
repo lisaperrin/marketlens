@@ -2,6 +2,7 @@
 
 from marketlens.data.cache import CachedProvider
 from marketlens.data.models import (
+    STATEMENT_FIELDS,
     Fundamentals,
     Interval,
     Period,
@@ -12,6 +13,7 @@ from marketlens.data.models import (
 from marketlens.data.provider import MarketDataProvider
 
 __all__ = [
+    "STATEMENT_FIELDS",
     "CachedProvider",
     "Fundamentals",
     "Interval",

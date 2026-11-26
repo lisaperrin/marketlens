@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Literal, get_args
@@ -96,6 +97,10 @@ class Statements:
         if self.shares_outstanding is None or self.price_at_year_end is None:
             return None
         return self.shares_outstanding * self.price_at_year_end
+
+
+STATEMENT_FIELDS: tuple[str, ...] = tuple(f.name for f in dataclasses.fields(Statements))
+"""Field names of :class:`Statements`, in declaration order, for downstream schema checks."""
 
 
 def validate_history(frame: pd.DataFrame) -> pd.DataFrame:

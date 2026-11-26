@@ -76,3 +76,14 @@ def test_statements_is_a_frozen_record_with_optional_lines() -> None:
     assert full.market_cap_at_year_end == pytest.approx(2.4e12)
     with pytest.raises(AttributeError):
         full.capex = 1.0  # type: ignore[misc]
+
+
+def test_statement_fields_tuple_matches_the_dataclass() -> None:
+    import dataclasses
+
+    from marketlens.data import STATEMENT_FIELDS
+    from marketlens.data.models import Statements
+
+    assert tuple(f.name for f in dataclasses.fields(Statements)) == STATEMENT_FIELDS
+    assert STATEMENT_FIELDS[:3] == ("symbol", "fiscal_year_end", "currency")
+    assert "capex" in STATEMENT_FIELDS and "employees" not in STATEMENT_FIELDS
