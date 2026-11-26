@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+import logging
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from typing import Any
 
@@ -10,7 +11,7 @@ import pandas as pd
 import yfinance as yf
 
 from marketlens.data.models import Fundamentals, Interval, Period, Quote, validate_history
-from marketlens.errors import DataUnavailableError, SymbolNotFoundError
+from marketlens.errors import DataUnavailableError, MarketLensError, SymbolNotFoundError
 
 
 def _get(mapping: Mapping[str, Any] | Any, key: str) -> Any:
@@ -34,12 +35,38 @@ def _as_int(value: Any) -> int | None:
     return None if number is None else int(number)
 
 
+def _guarded[T](symbol: str, action: Callable[[], T]) -> T:
+    """Run ``action``; let MarketLens errors through, wrap anything else as unavailable data.
+
+    yfinance raises a zoo of exception types for DNS failures, timeouts and HTTP errors.
+    Callers only need to know the request could not be served.
+    """
+    try:
+        return action()
+    except MarketLensError:
+        raise
+    except Exception as exc:
+        raise DataUnavailableError(
+            f"{symbol}: could not fetch data from Yahoo Finance ({exc})"
+        ) from exc
+
+
 class YFinanceProvider:
-    """Fetch quotes, history and fundamentals from Yahoo Finance via yfinance."""
+    """Fetch quotes, history and fundamentals from Yahoo Finance via yfinance.
+
+    yfinance's own logger is silenced on construction: every failure it would log is
+    turned into a :class:`~marketlens.errors.MarketLensError` with a readable message.
+    """
+
+    def __init__(self) -> None:
+        logging.getLogger("yfinance").setLevel(logging.CRITICAL)
 
     def get_quote(self, symbol: str) -> Quote:
         """Build a quote from ``Ticker.fast_info`` (cheap) plus the long name from ``info``."""
         symbol = symbol.upper()
+        return _guarded(symbol, lambda: self._quote(symbol))
+
+    def _quote(self, symbol: str) -> Quote:
         ticker = yf.Ticker(symbol)
         fast = ticker.fast_info
         price = _as_float(_get(fast, "lastPrice"))
@@ -61,6 +88,9 @@ class YFinanceProvider:
     ) -> pd.DataFrame:
         """Return adjusted daily/weekly/monthly OHLCV bars."""
         symbol = symbol.upper()
+        return _guarded(symbol, lambda: self._history(symbol, period, interval))
+
+    def _history(self, symbol: str, period: Period, interval: Interval) -> pd.DataFrame:
         frame = yf.Ticker(symbol).history(period=period, interval=interval, auto_adjust=True)
         if frame is None or frame.empty:
             raise SymbolNotFoundError(symbol)
@@ -72,6 +102,9 @@ class YFinanceProvider:
     def get_fundamentals(self, symbol: str) -> Fundamentals:
         """Combine ``fast_info`` (market cap, 52-week range) with ``info`` (ratios, sector)."""
         symbol = symbol.upper()
+        return _guarded(symbol, lambda: self._fundamentals(symbol))
+
+    def _fundamentals(self, symbol: str) -> Fundamentals:
         ticker = yf.Ticker(symbol)
         fast = ticker.fast_info
         info = self._safe_info(ticker)

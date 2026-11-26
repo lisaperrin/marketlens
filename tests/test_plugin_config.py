@@ -61,11 +61,12 @@ def test_marketplace_points_at_repo_root_plugin() -> None:
     assert plugin["source"] == "./"
 
 
-def test_mcp_config_launches_the_server_via_uvx() -> None:
+def test_mcp_config_launches_the_server_from_the_installed_plugin() -> None:
     config = load_json(".mcp.json")
     server = config["mcpServers"][PLUGIN_NAME]
     assert server["command"] == "uvx"
-    assert "marketlens-mcp" in server["args"]
+    assert server["args"][-1] == "marketlens-mcp"
+    assert "${CLAUDE_PLUGIN_ROOT}" in server["args"], "must run from the plugin checkout"
 
 
 def test_skills_exist_with_frontmatter() -> None:

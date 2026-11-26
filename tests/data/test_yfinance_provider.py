@@ -85,3 +85,35 @@ def test_unknown_symbol_raises(monkeypatch: pytest.MonkeyPatch) -> None:
         provider.get_history("ZZZZ")
     with pytest.raises(SymbolNotFoundError, match="ZZZZ"):
         provider.get_quote("ZZZZ")
+
+
+class BrokenTicker(StubTicker):
+    """Simulates yfinance failing at the transport layer (DNS, timeouts, HTTP 5xx)."""
+
+    @property
+    def fast_info(self):  # type: ignore[no-untyped-def, override]
+        raise ConnectionError("Could not resolve host: query2.finance.yahoo.com")
+
+    def history(self, *args, **kwargs):  # type: ignore[no-untyped-def]
+        raise RuntimeError("curl: (6) Could not resolve host")
+
+
+def test_transport_failures_become_data_unavailable(monkeypatch: pytest.MonkeyPatch) -> None:
+    from marketlens.errors import DataUnavailableError
+
+    monkeypatch.setattr(yfinance_provider, "yf", SimpleNamespace(Ticker=BrokenTicker))
+    provider = YFinanceProvider()
+    with pytest.raises(DataUnavailableError, match="AAPL"):
+        provider.get_quote("AAPL")
+    with pytest.raises(DataUnavailableError, match="AAPL"):
+        provider.get_history("AAPL")
+    with pytest.raises(DataUnavailableError, match="AAPL"):
+        provider.get_fundamentals("AAPL")
+
+
+def test_provider_silences_yfinance_logging() -> None:
+    import logging
+
+    logging.getLogger("yfinance").setLevel(logging.NOTSET)
+    YFinanceProvider()
+    assert logging.getLogger("yfinance").getEffectiveLevel() >= logging.CRITICAL
