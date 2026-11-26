@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "marketlens": {
+      "command": "uvx",
+      "args": ["--from", "marketlens@git+https://github.com/lisaperrin/marketlens", "marketlens-mcp"]
+    }
+  }
+}
