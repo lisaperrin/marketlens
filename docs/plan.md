@@ -119,4 +119,4 @@
 - [ ] README: badges, what it does, 60-second quickstart (`uv sync`, `uv run marketlens quote AAPL`), plugin install (`claude plugin marketplace add lisaperrin/marketlens`), architecture diagram, development section, hook/skill/agent table.
 - [ ] Full gate: `uv run ruff check . && uv run ruff format --check . && uv run mypy src && uv run pytest -q`.
 - [ ] Live smoke (network, not a test): `uv run marketlens analyze AAPL`, `uv run marketlens-mcp` handshake via a 5-line stdio client.
-- [ ] Create private repo via `gh api user/repos -f name=marketlens -F private=true`, push `main`. Commit `docs: readme and quickstart`.
+- [ ] Push `main` to the GitHub repository. Commit `docs: readme and quickstart`.

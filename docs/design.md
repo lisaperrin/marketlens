@@ -43,7 +43,7 @@ showcase of how a Python project and a Claude Code integration should be built.
   command, `uvx` to launch the MCP server from the plugin).
 - Dependencies kept small: `yfinance`, `pandas`, `typer`, `rich`, `mcp`.
   Dev: `pytest`, `ruff`, `mypy`.
-- Licence MIT. Private GitHub repo to start.
+- Licence MIT.
 
 ## Approaches considered
 
