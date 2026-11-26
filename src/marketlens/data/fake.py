@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 import pandas as pd
 
-from marketlens.data.models import Fundamentals, Interval, Period, Quote, validate_history
+from marketlens.data.models import (
+    Fundamentals,
+    Interval,
+    Period,
+    Quote,
+    Statements,
+    validate_history,
+)
 from marketlens.errors import SymbolNotFoundError
 
 
@@ -38,6 +45,30 @@ def make_fundamentals(symbol: str) -> Fundamentals:
     )
 
 
+def make_statements(symbol: str, years: int = 4, last_fiscal_year: int = 2025) -> list[Statements]:
+    """Build ``years`` plausible annual records ending in ``last_fiscal_year``, oldest first."""
+    records = []
+    for offset in range(years - 1, -1, -1):
+        year = last_fiscal_year - offset
+        growth = 1.15 ** (year - last_fiscal_year)  # earlier years are smaller
+        records.append(
+            Statements(
+                symbol=symbol.upper(),
+                fiscal_year_end=date(year, 12, 31),
+                currency="USD",
+                net_ppe=5_000.0 * growth,
+                capex=1_200.0 * growth,
+                rd_expense=3_000.0 * growth,
+                sga_expense=2_000.0 * growth,
+                total_debt=4_000.0,
+                cash=6_000.0 * growth,
+                shares_outstanding=1_000.0,
+                price_at_year_end=100.0 * growth,
+            )
+        )
+    return records
+
+
 def make_history(symbol: str, closes: list[float], start: str = "2024-01-01") -> pd.DataFrame:
     """Build a daily OHLCV frame from a list of closing prices.
 
@@ -66,10 +97,12 @@ class FakeProvider:
         quotes: dict[str, Quote] | None = None,
         histories: dict[str, pd.DataFrame] | None = None,
         fundamentals: dict[str, Fundamentals] | None = None,
+        statements: dict[str, list[Statements]] | None = None,
     ) -> None:
         self._quotes = {k.upper(): v for k, v in (quotes or {}).items()}
         self._histories = {k.upper(): v for k, v in (histories or {}).items()}
         self._fundamentals = {k.upper(): v for k, v in (fundamentals or {}).items()}
+        self._statements = {k.upper(): v for k, v in (statements or {}).items()}
 
     def get_quote(self, symbol: str) -> Quote:
         """Return the registered quote or raise."""
@@ -84,6 +117,11 @@ class FakeProvider:
     def get_fundamentals(self, symbol: str) -> Fundamentals:
         """Return the registered fundamentals or raise."""
         return self._lookup(self._fundamentals, symbol)
+
+    def get_statements(self, symbol: str, years: int = 4) -> list[Statements]:
+        """Return the newest ``years`` registered records, oldest first."""
+        records = self._lookup(self._statements, symbol)
+        return list(records[-years:]) if years > 0 else []
 
     @staticmethod
     def _lookup[T](table: dict[str, T], symbol: str) -> T:

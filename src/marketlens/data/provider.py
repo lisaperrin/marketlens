@@ -6,7 +6,7 @@ from typing import Protocol, runtime_checkable
 
 import pandas as pd
 
-from marketlens.data.models import Fundamentals, Interval, Period, Quote
+from marketlens.data.models import Fundamentals, Interval, Period, Quote, Statements
 
 
 @runtime_checkable
@@ -29,4 +29,8 @@ class MarketDataProvider(Protocol):
 
     def get_fundamentals(self, symbol: str) -> Fundamentals:
         """Return headline fundamentals for ``symbol``."""
+        ...
+
+    def get_statements(self, symbol: str, years: int = 4) -> list[Statements]:
+        """Return up to ``years`` annual statement records, oldest first."""
         ...

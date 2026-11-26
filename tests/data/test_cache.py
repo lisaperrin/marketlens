@@ -110,9 +110,9 @@ def test_clear_returns_number_of_rows_removed(setup) -> None:  # type: ignore[no
     _, cached, _ = setup
     cached.get_quote("AAPL")
     cached.get_history("AAPL")
-    assert cached.stats() == {"quote": 1, "history": 1, "fundamentals": 0}
+    assert cached.stats() == {"quote": 1, "history": 1, "fundamentals": 0, "statements": 0}
     assert cached.clear() == 2
-    assert cached.stats() == {"quote": 0, "history": 0, "fundamentals": 0}
+    assert cached.stats() == {"quote": 0, "history": 0, "fundamentals": 0, "statements": 0}
 
 
 def test_errors_from_inner_provider_are_not_cached(setup) -> None:  # type: ignore[no-untyped-def]
@@ -171,4 +171,28 @@ def test_cache_file_corrupted_after_open_is_a_miss_not_a_crash(tmp_path: Path) -
     cached.get_quote("AAPL")
     path.write_bytes(b"garbage" * 100)
     assert cached.get_quote("AAPL").price == 180.0
+    assert inner.calls == 2
+
+
+def test_statements_are_cached_for_a_day(tmp_path: Path) -> None:
+    from marketlens.data.cache import TTL_STATEMENTS
+    from marketlens.data.fake import make_statements
+
+    class Counting(FakeProvider):
+        calls = 0
+
+        def get_statements(self, symbol: str, years: int = 4):  # type: ignore[no-untyped-def]
+            self.calls += 1
+            return super().get_statements(symbol, years)
+
+    inner = Counting(statements={"NVDA": make_statements("NVDA", years=4)})
+    clock = FakeClock()
+    cached = CachedProvider(inner, path=tmp_path / "cache.db", clock=clock)
+    first = cached.get_statements("NVDA", years=3)
+    second = cached.get_statements("NVDA", years=3)
+    assert inner.calls == 1 and first == second
+    assert cached.stats()["statements"] == 1
+    assert TTL_STATEMENTS == 86400
+    clock.now += TTL_STATEMENTS + 1
+    cached.get_statements("NVDA", years=3)
     assert inner.calls == 2

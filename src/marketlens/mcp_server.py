@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import functools
 from collections.abc import Callable
+from dataclasses import asdict
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -71,6 +73,33 @@ def _period(value: str) -> Period:
 def get_quote(symbol: str) -> dict[str, Any]:
     """Latest price, previous close and day change for one ticker symbol."""
     return quote_to_dict(provider_factory().get_quote(symbol))
+
+
+@server.tool()
+@_tool_errors
+def get_statements(symbol: str, years: int = 4) -> dict[str, Any]:
+    """Annual statement lines for structural analysis, oldest fiscal year first.
+
+    Per year: net_ppe, capex (positive outflow), rd_expense, sga_expense, total_debt (gross),
+    cash, shares_outstanding, price_at_year_end and market_cap_at_year_end, in the reporting
+    currency as Yahoo publishes them. Missing lines are null, never estimated. The latest
+    headcount is under ``fundamentals.employees``; Yahoo keeps no history for it.
+    """
+    if years < 1:
+        raise ToolError("years must be at least 1")
+    provider = provider_factory()
+    records = provider.get_statements(symbol, years)
+    return {
+        "symbol": symbol.upper(),
+        "statements": [
+            {
+                **{k: (v.isoformat() if isinstance(v, date) else v) for k, v in asdict(r).items()},
+                "market_cap_at_year_end": r.market_cap_at_year_end,
+            }
+            for r in records
+        ],
+        "fundamentals": asdict(provider.get_fundamentals(symbol)),
+    }
 
 
 @server.tool()

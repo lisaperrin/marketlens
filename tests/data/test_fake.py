@@ -34,3 +34,24 @@ def test_fake_provider_raises_for_unknown_symbol() -> None:
         provider.get_history("ZZZZ")
     with pytest.raises(SymbolNotFoundError):
         provider.get_fundamentals("ZZZZ")
+
+
+def test_make_statements_builds_oldest_first_records() -> None:
+    from marketlens.data.fake import make_statements
+
+    statements = make_statements("NVDA", years=3)
+    assert [s.fiscal_year_end.year for s in statements] == [2023, 2024, 2025]
+    assert all(s.symbol == "NVDA" and s.currency == "USD" for s in statements)
+    assert all(s.capex is not None and s.capex > 0 for s in statements)
+    assert statements[-1].price_at_year_end is not None
+
+
+def test_fake_provider_serves_statements() -> None:
+    from marketlens.data.fake import make_statements
+
+    provider = FakeProvider(statements={"NVDA": make_statements("NVDA", years=4)})
+    assert len(provider.get_statements("nvda")) == 4
+    assert len(provider.get_statements("NVDA", years=2)) == 2
+    assert provider.get_statements("NVDA", years=2)[-1].fiscal_year_end.year == 2025
+    with pytest.raises(SymbolNotFoundError):
+        provider.get_statements("ZZZZ")

@@ -4,13 +4,20 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Mapping
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 import pandas as pd
 import yfinance as yf
 
-from marketlens.data.models import Fundamentals, Interval, Period, Quote, validate_history
+from marketlens.data.models import (
+    Fundamentals,
+    Interval,
+    Period,
+    Quote,
+    Statements,
+    validate_history,
+)
 from marketlens.errors import DataUnavailableError, MarketLensError, SymbolNotFoundError
 
 
@@ -49,6 +56,29 @@ def _guarded[T](symbol: str, action: Callable[[], T]) -> T:
         raise DataUnavailableError(
             f"{symbol}: could not fetch data from Yahoo Finance ({exc})"
         ) from exc
+
+
+def _statement_frame(ticker: Any, name: str) -> pd.DataFrame:
+    """One of yfinance's annual statement frames (rows are line items, columns are dates)."""
+    try:
+        frame = getattr(ticker, name)
+    except Exception:
+        return pd.DataFrame()
+    return frame if isinstance(frame, pd.DataFrame) else pd.DataFrame()
+
+
+def _to_date(value: Any) -> date:
+    return pd.Timestamp(value).date()
+
+
+def _line(frame: pd.DataFrame, item: str, year_end: date) -> float | None:
+    """Read one line item for one fiscal year; ``None`` when absent or not a number."""
+    if frame.empty or item not in frame.index:
+        return None
+    for column in frame.columns:
+        if _to_date(column) == year_end:
+            return _as_float(frame.at[item, column])
+    return None
 
 
 class YFinanceProvider:
@@ -122,7 +152,68 @@ class YFinanceProvider:
             industry=_get(info, "industry"),
             fifty_two_week_high=_as_float(_get(fast, "yearHigh")),
             fifty_two_week_low=_as_float(_get(fast, "yearLow")),
+            employees=_as_int(_get(info, "fullTimeEmployees")),
         )
+
+    def get_statements(self, symbol: str, years: int = 4) -> list[Statements]:
+        """Read annual balance sheet, income statement and cash flow lines, oldest first."""
+        symbol = symbol.upper()
+        return _guarded(symbol, lambda: self._statements(symbol, years))
+
+    def _statements(self, symbol: str, years: int) -> list[Statements]:
+        ticker = yf.Ticker(symbol)
+        balance = _statement_frame(ticker, "balance_sheet")
+        income = _statement_frame(ticker, "financials")
+        cashflow = _statement_frame(ticker, "cashflow")
+        year_ends = sorted(
+            {_to_date(c) for c in balance.columns} | {_to_date(c) for c in income.columns}
+        )
+        if not year_ends:
+            raise DataUnavailableError(f"{symbol}: Yahoo Finance has no annual statements")
+        year_ends = year_ends[-years:] if years > 0 else []
+        currency = str(_get(ticker.fast_info, "currency") or "USD")
+        closes = self._closes_for(symbol, year_ends)
+        records = []
+        for year_end in year_ends:
+            capex = _line(cashflow, "Capital Expenditure", year_end)
+            records.append(
+                Statements(
+                    symbol=symbol,
+                    fiscal_year_end=year_end,
+                    currency=currency,
+                    net_ppe=_line(balance, "Net PPE", year_end),
+                    capex=abs(capex) if capex is not None else None,
+                    rd_expense=_line(income, "Research And Development", year_end),
+                    sga_expense=_line(income, "Selling General And Administration", year_end),
+                    total_debt=_line(balance, "Total Debt", year_end),
+                    cash=_line(balance, "Cash And Cash Equivalents", year_end),
+                    shares_outstanding=_line(balance, "Ordinary Shares Number", year_end),
+                    price_at_year_end=closes.get(year_end),
+                )
+            )
+        return records
+
+    def _closes_for(self, symbol: str, year_ends: list[date]) -> dict[date, float]:
+        """Last adjusted close on or before each fiscal year end; empty if history fails."""
+        if not year_ends:
+            return {}
+        span_years = datetime.now(tz=UTC).year - min(year_ends).year + 1
+        period: Period = "5y" if span_years <= 5 else "max"
+        try:
+            history = self._history(symbol, period, "1d")
+        except MarketLensError:
+            return {}
+        close = history["Close"]
+        index = close.index
+        if isinstance(index, pd.DatetimeIndex) and index.tz is not None:
+            index = index.tz_localize(None)
+        close = pd.Series(close.to_numpy(), index=index)
+        result: dict[date, float] = {}
+        for year_end in year_ends:
+            before = close.loc[: pd.Timestamp(year_end)]
+            if not before.empty:
+                result[year_end] = float(before.iloc[-1])
+        return result
 
     @staticmethod
     def _safe_info(ticker: Any) -> Mapping[str, Any]:

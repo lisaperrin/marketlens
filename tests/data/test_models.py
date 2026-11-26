@@ -56,3 +56,23 @@ def test_validate_history_returns_frame_sorted_by_date() -> None:
     )
     result = validate_history(frame)
     assert list(result["Close"]) == [1.0, 2.0]
+
+
+def test_statements_is_a_frozen_record_with_optional_lines() -> None:
+    from datetime import date
+
+    from marketlens.data.models import Statements
+
+    s = Statements(symbol="NVDA", fiscal_year_end=date(2025, 1, 26), currency="USD")
+    assert s.net_ppe is None and s.capex is None and s.price_at_year_end is None
+    assert s.market_cap_at_year_end is None
+    full = Statements(
+        symbol="NVDA",
+        fiscal_year_end=date(2025, 1, 26),
+        currency="USD",
+        shares_outstanding=24_000_000_000,
+        price_at_year_end=100.0,
+    )
+    assert full.market_cap_at_year_end == pytest.approx(2.4e12)
+    with pytest.raises(AttributeError):
+        full.capex = 1.0  # type: ignore[misc]

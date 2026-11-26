@@ -45,6 +45,7 @@ def test_server_exposes_every_tool() -> None:
         "portfolio_summary",
         "market_brief",
         "check_alerts",
+        "get_statements",
     }
 
 
@@ -142,3 +143,20 @@ def test_check_alerts_tool(tmp_path: Path) -> None:
 def test_check_alerts_rejects_an_empty_universe() -> None:
     with pytest.raises(ToolError, match="symbols"):
         call("check_alerts", symbols=[])
+
+
+def test_get_statements_tool_returns_oldest_first_records(monkeypatch: pytest.MonkeyPatch) -> None:
+    from marketlens.data.fake import make_statements
+
+    provider = FakeProvider(
+        fundamentals={"NVDA": make_fundamentals("NVDA")},
+        statements={"NVDA": make_statements("NVDA", years=4)},
+    )
+    monkeypatch.setattr(mcp_server, "provider_factory", lambda: provider)
+    data = call("get_statements", symbol="NVDA", years=3)
+    assert data["symbol"] == "NVDA"
+    assert [s["fiscal_year_end"][:4] for s in data["statements"]] == ["2023", "2024", "2025"]
+    assert data["statements"][-1]["capex"] > 0
+    assert "market_cap_at_year_end" in data["statements"][-1]
+    names = {tool.name for tool in asyncio.run(mcp_server.server.list_tools())}
+    assert "get_statements" in names

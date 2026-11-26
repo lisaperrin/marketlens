@@ -9,14 +9,21 @@ import sqlite3
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import date, datetime
 from io import StringIO
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
-from marketlens.data.models import Fundamentals, Interval, Period, Quote, validate_history
+from marketlens.data.models import (
+    Fundamentals,
+    Interval,
+    Period,
+    Quote,
+    Statements,
+    validate_history,
+)
 from marketlens.data.provider import MarketDataProvider
 
 TTL_QUOTE = 900
@@ -25,8 +32,10 @@ TTL_HISTORY = 3600
 """Seconds a price history stays fresh (1 hour)."""
 TTL_FUNDAMENTALS = 86400
 """Seconds fundamentals stay fresh (24 hours)."""
+TTL_STATEMENTS = 86400
+"""Seconds annual statements stay fresh (24 hours)."""
 
-KINDS: tuple[str, ...] = ("quote", "history", "fundamentals")
+KINDS: tuple[str, ...] = ("quote", "history", "fundamentals", "statements")
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS entries (
@@ -121,6 +130,19 @@ class CachedProvider:
             decode=lambda raw: Fundamentals(**json.loads(raw)),
         )
         return fundamentals
+
+    def get_statements(self, symbol: str, years: int = 4) -> list[Statements]:
+        """Return cached statements when fresh, otherwise fetch and store."""
+        symbol = symbol.upper()
+        records: list[Statements] = self._through(
+            "statements",
+            f"{symbol}:{years}",
+            TTL_STATEMENTS,
+            fetch=lambda: self._inner.get_statements(symbol, years),
+            encode=_encode_statements,
+            decode=_decode_statements,
+        )
+        return records
 
     # -- maintenance --------------------------------------------------------------------
 
@@ -219,9 +241,21 @@ def _encode_dataclass(value: Any) -> str:
 
 
 def _json_default(value: Any) -> str:
-    if isinstance(value, datetime):
+    if isinstance(value, datetime | date):
         return value.isoformat()
     raise TypeError(f"Cannot serialise {type(value).__name__}")
+
+
+def _encode_statements(records: list[Statements]) -> str:
+    return json.dumps([dataclasses.asdict(r) for r in records], default=_json_default)
+
+
+def _decode_statements(raw: str) -> list[Statements]:
+    records = []
+    for data in json.loads(raw):
+        data["fiscal_year_end"] = date.fromisoformat(data["fiscal_year_end"])
+        records.append(Statements(**data))
+    return records
 
 
 def _decode_quote(raw: str) -> Quote:
