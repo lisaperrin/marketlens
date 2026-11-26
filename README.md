@@ -69,6 +69,12 @@ uv run marketlens alerts -w AAPL,NVDA --portfolio portfolio.toml --rules alerts.
 - **Alerts**: `alerts` prints only what crossed and exits 0; add `--fail-on-alert` to get exit
   code 3 for cron. Defaults are RSI 70/30, a day move of 5 % or more and Bollinger breakouts;
   `examples/alerts.example.toml` shows per-symbol price levels and overrides.
+- **Annual statements** (library and MCP only): `provider.get_statements("NVDA", years=4)`
+  returns one record per fiscal year, oldest first, with net PPE, capex (positive), R&D,
+  SG&A, gross debt, cash, shares outstanding and the year-end close, exactly as Yahoo
+  publishes them. Built for structural models such as
+  [firmvalue](https://github.com/lisaperrin/firm-value-decomposition); the latest headcount
+  is on `Fundamentals.employees`.
 
 ### Your own portfolio
 
@@ -104,7 +110,7 @@ What you get:
 
 | Component | Name | What it does |
 |-----------|------|--------------|
-| MCP server | `marketlens` | Tools `get_quote`, `analyze_ticker`, `compare_tickers`, `portfolio_summary`, `market_brief`, `check_alerts`. Launched with `uvx` from the plugin folder, so no manual setup. |
+| MCP server | `marketlens` | Tools `get_quote`, `analyze_ticker`, `compare_tickers`, `portfolio_summary`, `market_brief`, `check_alerts`, `get_statements`. Launched with `uvx` from the plugin folder, so no manual setup. |
 | Skill | `/marketlens:analyze-ticker AAPL [1y]` | Structured research note on one symbol. |
 | Skill | `/marketlens:compare-tickers AAPL MSFT` | Side-by-side table, correlation and a verdict. |
 | Skill | `/marketlens:portfolio-review [path]` | Valuation, concentration, winners and losers. |
