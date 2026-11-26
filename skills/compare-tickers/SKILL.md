@@ -30,6 +30,12 @@ Compare the symbols in `$ARGUMENTS` with live data and explain what separates th
    - What the correlation means for holding several of them at once.
 6. End with: "Delayed data, not investment advice."
 
+## Benchmark (only when asked)
+
+If the user wants the comparison "relative to the market" or names an index, pass
+`benchmark="<SYMBOL>"`; the table then gains `Excess` (return minus benchmark) and `Beta`
+columns. Leave it out otherwise.
+
 ## Rules
 
 - Keep the comparison to the data returned. If the user asks "which should I buy", explain

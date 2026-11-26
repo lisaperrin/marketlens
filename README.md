@@ -48,6 +48,28 @@ uv run marketlens brief --watchlist AAPL,MSFT,NVDA
 Add `--json` before any command for machine-readable output, `--no-cache` to bypass the
 local cache. Yahoo data is delayed and nothing here is investment advice.
 
+### Opt-in extras
+
+Nothing below appears unless you ask for it.
+
+```bash
+uv run marketlens analyze NVDA --benchmark SPY        # benchmark return, excess return, beta
+uv run marketlens compare AAPL MSFT -b VWCE.DE        # adds Excess and Beta columns
+uv run marketlens portfolio -b VWCE.DE                # benchmark day move + portfolio beta
+uv run marketlens analyze NVDA --indicators           # EMA 20, MACD, Bollinger Bands block
+uv run marketlens alerts -w AAPL,NVDA --portfolio portfolio.toml --rules alerts.toml
+```
+
+- **Benchmark**: `--benchmark` / `-b` on `analyze`, `compare` and `portfolio`, or
+  `benchmark = "VWCE.DE"` in `portfolio.toml` as the default for the portfolio view. Beta and
+  excess return are computed over the same period on shared trading days.
+- **Signals**: the analyze panel shows a *Signals* row only when something stands out: a close
+  outside the Bollinger Bands, a MACD crossover or SMA 50/200 cross in the last five sessions,
+  or RSI beyond 70/30.
+- **Alerts**: `alerts` prints only what crossed and exits 0; add `--fail-on-alert` to get exit
+  code 3 for cron. Defaults are RSI 70/30, a day move of 5 % or more and Bollinger breakouts;
+  `examples/alerts.example.toml` shows per-symbol price levels and overrides.
+
 ### Your own portfolio
 
 Copy `examples/portfolio.example.toml` to `portfolio.toml` (git-ignored) and edit:
@@ -82,11 +104,12 @@ What you get:
 
 | Component | Name | What it does |
 |-----------|------|--------------|
-| MCP server | `marketlens` | Tools `get_quote`, `analyze_ticker`, `compare_tickers`, `portfolio_summary`, `market_brief`. Launched with `uvx` from the plugin folder, so no manual setup. |
+| MCP server | `marketlens` | Tools `get_quote`, `analyze_ticker`, `compare_tickers`, `portfolio_summary`, `market_brief`, `check_alerts`. Launched with `uvx` from the plugin folder, so no manual setup. |
 | Skill | `/marketlens:analyze-ticker AAPL [1y]` | Structured research note on one symbol. |
 | Skill | `/marketlens:compare-tickers AAPL MSFT` | Side-by-side table, correlation and a verdict. |
 | Skill | `/marketlens:portfolio-review [path]` | Valuation, concentration, winners and losers. |
 | Skill | `/marketlens:market-brief NVDA,TSLA` | Sub-150-word daily brief with movers. |
+| Skill | `/marketlens:check-alerts --portfolio portfolio.toml` | Only what crossed a threshold today. |
 | Skill | `/marketlens:add-indicator EMA 20` | Dev workflow: add an indicator test-first (repo only). |
 | Agent | `market-analyst` | Multi-call research write-ups from live data; never quotes from memory. |
 | Agent | `quant-reviewer` | Checks indicator maths and tests against textbook definitions. |
@@ -101,10 +124,11 @@ tools instead of guessing.
 ```text
 src/marketlens/
 ├── data/          MarketDataProvider protocol · YFinanceProvider · CachedProvider (SQLite) · FakeProvider
-├── analysis/      pure pandas: returns, volatility, drawdown, Sharpe, SMA, RSI, correlation, summaries
-├── portfolio/     TOML holdings loader · valuation (value, P&L, weights, day change)
+├── analysis/      pure pandas: returns, volatility, drawdown, Sharpe, beta, SMA/EMA, RSI, MACD, Bollinger, signals
+├── portfolio/     TOML holdings loader · valuation (value, P&L, weights, day change, benchmark)
+├── alerts/        threshold rules (TOML) and evaluation
 ├── report/        rich tables and the daily brief; to_dict() feeds --json and MCP
-├── cli.py         Typer: quote · analyze · compare · portfolio · brief · cache
+├── cli.py         Typer: quote · analyze · compare · portfolio · brief · alerts · cache
 └── mcp_server.py  MCP stdio server exposing the same operations as tools
 
 .claude-plugin/    plugin.json and marketplace.json        skills/  agents/  hooks/   plugin components
@@ -123,7 +147,7 @@ Key decisions:
   without a network connection, including the MCP tools and the hook scripts.
 - **Known-answer maths.** Every statistic is pinned by a hand-computed test. RSI uses Wilder
   smoothing, volatility uses sample standard deviation scaled by sqrt(252), drawdown is a
-  negative fraction.
+  negative fraction, beta is covariance over benchmark variance of daily returns.
 - **Readable failures.** All errors derive from `MarketLensError`; the CLI exits 1 with one
   line, the MCP server raises a `ToolError` carrying the message, and yfinance's transport
   failures become `DataUnavailableError` instead of tracebacks.

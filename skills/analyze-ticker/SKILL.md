@@ -31,9 +31,20 @@ The optional second argument is the history window (`1mo`, `3mo`, `6mo`, `1y`, `
      price near the 52-week high).
 5. **Close with the data timestamp** and the sentence: "Delayed data, not investment advice."
 
+## Benchmark (only when asked)
+
+If the user asks how the stock did "against the market", "vs the index" or names a benchmark,
+pass `benchmark="<SYMBOL>"` (SPY for US large caps, VWCE.DE for a global EUR view, or what the
+user named). Report the benchmark return, the excess return and beta in one sentence each.
+Do not add a benchmark otherwise.
+
 ## Rules
 
 - Percentages in the tool output are fractions (`0.12` is 12 %) except `change_pct`,
   `day_change_pct` and `dividend_yield`, which are already percentages.
 - `None` means the data was unavailable; say "not available", do not invent a value.
+- `signals` in the tool output lists notable conditions (Bollinger breakout, MACD crossover,
+  RSI extreme, golden or death cross). Mention each in one clause; an empty list means say
+  nothing about them. The `indicators` block (EMA 20, MACD, Bollinger values) is for when the
+  user asks about technicals.
 - Do not recommend buying or selling. Describe; let the user decide.

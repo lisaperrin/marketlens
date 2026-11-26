@@ -169,4 +169,4 @@ def test_session_start_prints_plugin_context(tmp_path: Path) -> None:
     )
     assert result.returncode == 0
     assert "MarketLens" in result.stdout
-    assert "analyze_ticker" in result.stdout
+    assert "analyze_ticker" in result.stdout and "check_alerts" in result.stdout

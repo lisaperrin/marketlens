@@ -5,8 +5,8 @@ set -u
 cat <<'TEXT'
 MarketLens plugin is active. Market data (delayed, from Yahoo Finance via yfinance) is
 available through the `marketlens` MCP server tools: get_quote, analyze_ticker,
-compare_tickers, portfolio_summary and market_brief. Prefer these tools over guessing or
+compare_tickers, portfolio_summary, market_brief and check_alerts. Prefer these tools over guessing or
 recalling prices from memory. Skills: /marketlens:analyze-ticker, /marketlens:compare-tickers,
-/marketlens:portfolio-review, /marketlens:market-brief. Nothing produced is investment advice.
+/marketlens:portfolio-review, /marketlens:market-brief, /marketlens:check-alerts. Nothing produced is investment advice.
 TEXT
 exit 0

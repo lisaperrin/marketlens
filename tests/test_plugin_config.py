@@ -13,6 +13,7 @@ EXPECTED_SKILLS = {
     "compare-tickers",
     "portfolio-review",
     "market-brief",
+    "check-alerts",
     "add-indicator",
 }
 EXPECTED_AGENTS = {"market-analyst", "quant-reviewer"}
@@ -22,6 +23,7 @@ EXPECTED_MCP_TOOLS = {
     "compare_tickers",
     "portfolio_summary",
     "market_brief",
+    "check_alerts",
 }
 
 
@@ -46,7 +48,7 @@ def frontmatter(path: Path) -> dict[str, str]:
 def test_manifest_has_required_fields() -> None:
     manifest = load_json(".claude-plugin/plugin.json")
     assert manifest["name"] == PLUGIN_NAME
-    assert manifest["version"] == "0.1.0"
+    assert manifest["version"] == "0.2.0"
     assert manifest["description"]
     assert manifest["author"]["name"]
     assert manifest["license"] == "MIT"

@@ -23,6 +23,12 @@ Write a brief for the watchlist in `$ARGUMENTS`.
 4. **Timestamp** the brief with `generated_at` from the output, and end with
    "Delayed data, not investment advice."
 
+## Alerts
+
+If the user asks whether anything needs attention, or on a scheduled check-in, also call
+`check_alerts` with the same symbols and append a short "Alerts" line: what fired, or "none".
+Use `/marketlens:check-alerts` for the full report.
+
 ## Rules
 
 - A brief is a scan, not an analysis. Do not speculate about why something moved unless the

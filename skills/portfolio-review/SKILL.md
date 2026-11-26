@@ -30,10 +30,18 @@ Review the holdings file at `$0` (default `./portfolio.toml`) with live prices.
    today's move, call `analyze_ticker` on it and add two sentences of context.
 8. End with: "Delayed data, not investment advice."
 
+## Benchmark
+
+If the holdings file sets `benchmark = "..."`, or the user asks how the portfolio did against
+the market, pass `benchmark` to the tool and add one sentence: the benchmark's day move next
+to the portfolio's, and the portfolio's weighted beta (above 1 means it swings more than the
+benchmark). Do not compare return since purchase; purchase dates are unknown.
+
 ## Holdings file format
 
 ```toml
 base_currency = "USD"
+benchmark = "VTI"     # optional
 
 [[holdings]]
 symbol = "AAPL"
