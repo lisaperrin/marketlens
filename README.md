@@ -40,6 +40,13 @@ uv sync
 uv run marketlens --help
 ```
 
+Not on PyPI. The `marketlens` name there belongs to an unrelated Polymarket package, so
+`pip install marketlens` gets you something else. To try it without cloning:
+
+```bash
+uvx --from git+https://github.com/lisaperrin/marketlens marketlens quote AAPL
+```
+
 ## Usage
 
 ```bash
