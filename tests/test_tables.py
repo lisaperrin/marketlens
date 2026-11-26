@@ -137,3 +137,39 @@ def test_fractional_shares_show_three_decimals() -> None:
     text = render(portfolio_table(big_portfolio_valuation()))
     assert "26.601" in text and "26.60139" not in text
     assert " 6 " in text  # whole shares stay integers
+
+
+def test_benchmark_rows_only_appear_when_requested() -> None:
+    from marketlens.data.fake import make_history
+
+    a = [100.0, 110.0, 104.5, 106.59, 107.6559]
+    spy = [100.0, 105.0, 102.375, 103.39875, 103.9157]
+    prov = FakeProvider(
+        quotes={"A": make_quote("A", a[-1], a[-2]), "SPY": make_quote("SPY", spy[-1], spy[-2])},
+        histories={"A": make_history("A", a), "SPY": make_history("SPY", spy)},
+        fundamentals={"A": make_fundamentals("A"), "SPY": make_fundamentals("SPY")},
+    )
+    plain = render(summary_table(summarize("A", prov, "1y")))
+    assert "Benchmark" not in plain and "SPY" not in plain
+    with_bench = render(summary_table(summarize("A", prov, "1y", benchmark="SPY")))
+    assert "vs SPY" in with_bench and "Beta vs SPY" in with_bench and "2.00" in with_bench
+    assert "Excess return" in with_bench
+    cmp_plain = render(comparison_table(compare(["A", "SPY"], prov, "1y")))
+    assert "Beta" not in cmp_plain
+    cmp_bench = render(comparison_table(compare(["A", "SPY"], prov, "1y", benchmark="SPY")))
+    assert "Beta" in cmp_bench and "Excess" in cmp_bench
+
+
+def test_portfolio_benchmark_line_only_when_present() -> None:
+    from marketlens.data.fake import make_history
+
+    a = [100.0, 110.0, 104.5, 106.59, 107.6559]
+    prov = FakeProvider(
+        quotes={"A": make_quote("A", 180.0, 175.0), "SPY": make_quote("SPY", 500.0, 490.0)},
+        histories={"A": make_history("A", a), "SPY": make_history("SPY", a)},
+    )
+    portfolio = Portfolio("USD", (Holding("A", 10, 150.0),))
+    plain = render(portfolio_table(value_portfolio(portfolio, prov)))
+    assert "Benchmark" not in plain
+    bench = render(portfolio_table(value_portfolio(portfolio, prov, benchmark="SPY")))
+    assert "Benchmark SPY" in bench and "+2.04%" in bench and "beta" in bench.lower()

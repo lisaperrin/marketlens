@@ -73,31 +73,42 @@ def get_quote(symbol: str) -> dict[str, Any]:
 
 @server.tool()
 @_tool_errors
-def analyze_ticker(symbol: str, period: Period = "1y") -> dict[str, Any]:
+def analyze_ticker(
+    symbol: str, period: Period = "1y", benchmark: str | None = None
+) -> dict[str, Any]:
     """Return, volatility, drawdown, Sharpe, SMA 50/200, RSI and fundamentals for one symbol.
 
-    ``period`` is the history window: 1mo, 3mo, 6mo, 1y, 2y, 5y or max.
+    ``period`` is the history window: 1mo, 3mo, 6mo, 1y, 2y, 5y or max. ``benchmark`` (for
+    example SPY or VWCE.DE) adds the benchmark's return, the excess return and beta.
     """
-    return summarize(symbol, provider_factory(), _period(period)).to_dict()
+    return summarize(symbol, provider_factory(), _period(period), benchmark).to_dict()
 
 
 @server.tool()
 @_tool_errors
-def compare_tickers(symbols: list[str], period: Period = "1y") -> dict[str, Any]:
-    """Side-by-side summaries for two or more symbols plus the correlation of daily returns."""
+def compare_tickers(
+    symbols: list[str], period: Period = "1y", benchmark: str | None = None
+) -> dict[str, Any]:
+    """Side-by-side summaries for two or more symbols plus the correlation of daily returns.
+
+    ``benchmark`` adds excess return and beta against that symbol to every summary.
+    """
     if len(symbols) < 2:
         raise ToolError("provide at least two symbols to compare")
-    return compare(symbols, provider_factory(), _period(period)).to_dict()
+    return compare(symbols, provider_factory(), _period(period), benchmark).to_dict()
 
 
 @server.tool()
 @_tool_errors
-def portfolio_summary(path: str) -> dict[str, Any]:
+def portfolio_summary(path: str, benchmark: str | None = None) -> dict[str, Any]:
     """Value a holdings TOML file: positions, P&L, weights and day change.
 
     ``path`` points at a file with ``[[holdings]]`` entries of symbol, shares and cost_basis.
+    ``benchmark`` overrides the file's own ``benchmark`` key and adds the benchmark's day
+    change and the portfolio's weighted beta.
     """
-    return value_portfolio(load_portfolio(Path(path).expanduser()), provider_factory()).to_dict()
+    portfolio = load_portfolio(Path(path).expanduser())
+    return value_portfolio(portfolio, provider_factory(), benchmark).to_dict()
 
 
 @server.tool()

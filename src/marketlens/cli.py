@@ -106,6 +106,14 @@ PeriodOption = Annotated[
 ]
 
 
+BenchmarkOption = Annotated[
+    str | None,
+    typer.Option(
+        "--benchmark", "-b", help="Compare against this symbol (e.g. SPY, VWCE.DE) over the period."
+    ),
+]
+
+
 def _run(action: Any) -> None:
     """Call ``action`` and turn MarketLens errors into a one-line failure, exit code 1."""
     try:
@@ -131,12 +139,13 @@ def quote(symbols: Annotated[list[str], typer.Argument(help="Ticker symbols.")])
 def analyze(
     symbol: Annotated[str, typer.Argument(help="Ticker symbol.")],
     period: PeriodOption = "1y",
+    benchmark: BenchmarkOption = None,
 ) -> None:
     """Return, risk, trend indicators and fundamentals for one symbol."""
     window = _parse_period(period)
 
     def action() -> None:
-        summary = summarize(symbol, get_provider(state.no_cache), window)
+        summary = summarize(symbol, get_provider(state.no_cache), window, benchmark)
         _emit(summary.to_dict(), summary_table(summary))
 
     _run(action)
@@ -146,6 +155,7 @@ def analyze(
 def compare(
     symbols: Annotated[list[str], typer.Argument(help="Two or more ticker symbols.")],
     period: PeriodOption = "1y",
+    benchmark: BenchmarkOption = None,
 ) -> None:
     """Side-by-side statistics and return correlation for several symbols."""
     if len(symbols) < 2:
@@ -153,7 +163,7 @@ def compare(
     window = _parse_period(period)
 
     def action() -> None:
-        comparison = compare_symbols(symbols, get_provider(state.no_cache), window)
+        comparison = compare_symbols(symbols, get_provider(state.no_cache), window, benchmark)
         _emit(comparison.to_dict(), comparison_table(comparison))
 
     _run(action)
@@ -164,11 +174,16 @@ def portfolio(
     path: Annotated[
         Path, typer.Argument(help="Holdings TOML file (see examples/portfolio.example.toml).")
     ] = Path("portfolio.toml"),
+    benchmark: BenchmarkOption = None,
 ) -> None:
-    """Value a holdings file: market value, P&L, weights and day change."""
+    """Value a holdings file: market value, P&L, weights and day change.
+
+    --benchmark overrides the ``benchmark`` key of the holdings file.
+    """
 
     def action() -> None:
-        valuation = value_portfolio(load_portfolio(path), get_provider(state.no_cache))
+        portfolio = load_portfolio(path)
+        valuation = value_portfolio(portfolio, get_provider(state.no_cache), benchmark)
         _emit(valuation.to_dict(), portfolio_table(valuation))
 
     _run(action)

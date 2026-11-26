@@ -3,6 +3,7 @@
 Format::
 
     base_currency = "USD"          # optional, defaults to USD
+    benchmark = "VWCE.DE"          # optional, default benchmark for the portfolio view
 
     [[holdings]]
     symbol = "AAPL"
@@ -35,6 +36,8 @@ class Portfolio:
 
     base_currency: str
     holdings: tuple[Holding, ...]
+    benchmark: str | None = None
+    """Default benchmark symbol for the portfolio view; ``None`` means no comparison."""
 
 
 def load_portfolio(path: Path) -> Portfolio:
@@ -65,7 +68,14 @@ def load_portfolio(path: Path) -> Portfolio:
         merged[holding.symbol] = holding if existing is None else _merge(existing, holding)
 
     base_currency = str(document.get("base_currency", "USD")).upper()
-    return Portfolio(base_currency=base_currency, holdings=tuple(merged.values()))
+    benchmark = document.get("benchmark")
+    if benchmark is not None and (not isinstance(benchmark, str) or not benchmark.strip()):
+        raise HoldingsFileError(f"{path}: 'benchmark' must be a ticker symbol string")
+    return Portfolio(
+        base_currency=base_currency,
+        holdings=tuple(merged.values()),
+        benchmark=benchmark.strip().upper() if isinstance(benchmark, str) else None,
+    )
 
 
 def _parse_holding(entry: Any, index: int) -> Holding:

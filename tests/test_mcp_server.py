@@ -116,3 +116,13 @@ def test_period_parameters_are_enums_in_the_tool_schema() -> None:
     for name in ("analyze_ticker", "compare_tickers"):
         period = tools[name].input_schema["properties"]["period"]
         assert set(period["enum"]) == {"1mo", "3mo", "6mo", "1y", "2y", "5y", "max"}, name
+
+
+def test_tools_accept_optional_benchmark() -> None:
+    data = call("analyze_ticker", symbol="AAPL", benchmark="VTI")
+    assert data["benchmark"]["symbol"] == "VTI"
+    data = call("compare_tickers", symbols=["AAPL", "MSFT"], benchmark="VTI")
+    assert data["summaries"][0]["benchmark"]["symbol"] == "VTI"
+    data = call("portfolio_summary", path=str(EXAMPLE), benchmark="VTI")
+    assert data["benchmark"]["symbol"] == "VTI"
+    assert call("analyze_ticker", symbol="AAPL")["benchmark"] is None

@@ -124,6 +124,13 @@ def summary_table(summary: TickerSummary) -> RenderableType:
     ]
     for label, value in rows:
         table.add_row(label, value)
+    if (bench := summary.benchmark) is not None:
+        table.add_section()
+        table.add_row(
+            f"vs {bench.symbol} ({bench.period})", _pct(bench.benchmark_return, fraction=True)
+        )
+        table.add_row("Excess return", _pct(bench.excess_return, fraction=True))
+        table.add_row(f"Beta vs {bench.symbol}", _num(bench.beta))
     table.add_section()
     table.add_row("Data as of", Text(f"{format_as_of(quote.as_of)} (delayed)", style="dim"))
     return Panel(table, title=f"[bold]{quote.symbol}[/bold] · {quote.name}", expand=False)
@@ -131,12 +138,16 @@ def summary_table(summary: TickerSummary) -> RenderableType:
 
 def comparison_table(comparison: Comparison) -> RenderableType:
     """Side-by-side stats, followed by the return-correlation matrix."""
+    with_benchmark = any(s.benchmark is not None for s in comparison.summaries)
     stats = _table("Comparison")
     _col(stats, "Symbol", style="bold")
-    for header in ("Price", "Return", "Volatility", "Max DD", "Sharpe", "RSI", "P/E"):
+    headers = ["Price", "Return", "Volatility", "Max DD", "Sharpe", "RSI", "P/E"]
+    if with_benchmark:
+        headers += ["Excess", "Beta"]
+    for header in headers:
         _col(stats, header, justify="right")
     for s in comparison.summaries:
-        stats.add_row(
+        cells: list[RenderableType] = [
             s.symbol,
             _money(s.quote.price),
             _pct(s.total_return, fraction=True),
@@ -145,7 +156,17 @@ def comparison_table(comparison: Comparison) -> RenderableType:
             _num(s.sharpe_ratio),
             _num(s.rsi_14, 1),
             _num(s.fundamentals.trailing_pe),
-        )
+        ]
+        if with_benchmark:
+            bench = s.benchmark
+            cells += [
+                _pct(bench.excess_return, fraction=True) if bench else Text("—", style="dim"),
+                _num(bench.beta) if bench else "—",
+            ]
+        stats.add_row(*cells)
+    if with_benchmark:
+        names = {s.benchmark.symbol for s in comparison.summaries if s.benchmark}
+        stats.title = f"Comparison · vs {', '.join(sorted(names))}"
 
     if comparison.summaries:
         stats.caption = _as_of_caption(max(s.quote.as_of for s in comparison.summaries))
@@ -154,17 +175,22 @@ def comparison_table(comparison: Comparison) -> RenderableType:
     symbols = [str(c) for c in comparison.correlation.columns]
     for symbol in symbols:
         _col(matrix, symbol, justify="right")
-    cells = comparison.correlation.to_numpy(dtype="float64")
+    values = comparison.correlation.to_numpy(dtype="float64")
     for i, row in enumerate(symbols):
-        matrix.add_row(row, *(_num(float(value)) for value in cells[i]))
+        matrix.add_row(row, *(_num(float(value)) for value in values[i]))
     return Group(stats, matrix)
 
 
 def portfolio_table(valuation: PortfolioValuation) -> Table:
     """Positions with P&L and weights, plus a totals row."""
-    table = _table(
-        f"Portfolio ({valuation.base_currency})", caption=_as_of_caption(valuation.as_of)
-    )
+    caption = _as_of_caption(valuation.as_of)
+    if (bench := valuation.benchmark) is not None:
+        beta_text = "n/a" if bench.weighted_beta is None else f"{bench.weighted_beta:.2f}"
+        caption = (
+            f"Benchmark {bench.symbol}: day {bench.day_change_pct:+.2f}% · "
+            f"portfolio beta {beta_text} ({bench.period})\n{caption}"
+        )
+    table = _table(f"Portfolio ({valuation.base_currency})", caption=caption)
     _col(table, "Symbol", style="bold")
     for header in ("Shares", "Price", "Value", "Cost", "P&L", "P&L %", "Day %", "Weight"):
         _col(table, header, justify="right")

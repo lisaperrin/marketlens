@@ -71,3 +71,10 @@ def test_duplicate_symbols_are_merged_by_weighted_cost(tmp_path: Path) -> None:
     )
     portfolio = load_portfolio(write(tmp_path, text))
     assert portfolio.holdings == (Holding(symbol="AAPL", shares=20.0, cost_basis=150.0),)
+
+
+def test_benchmark_key_is_optional_and_uppercased(tmp_path: Path) -> None:
+    body = '[[holdings]]\nsymbol = "AAPL"\nshares = 1\ncost_basis = 1.0\n'
+    assert load_portfolio(write(tmp_path, body)).benchmark is None
+    with_bench = load_portfolio(write(tmp_path, 'benchmark = "vwce.de"\n' + body))
+    assert with_bench.benchmark == "VWCE.DE"

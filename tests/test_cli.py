@@ -131,3 +131,30 @@ def test_cache_stats_and_clear() -> None:
     assert result.exit_code == 0
     assert "1" in result.output
     assert cache.stats()["quote"] == 0
+
+
+def test_analyze_with_benchmark_flag_json() -> None:
+    result = runner.invoke(cli.app, ["--json", "analyze", "AAPL", "-b", "VTI"])
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert data["benchmark"]["symbol"] == "VTI"
+    assert "beta" in data["benchmark"] and "excess_return" in data["benchmark"]
+
+
+def test_compare_with_benchmark_flag_json() -> None:
+    result = runner.invoke(cli.app, ["--json", "compare", "AAPL", "MSFT", "--benchmark", "VTI"])
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert all(s["benchmark"]["symbol"] == "VTI" for s in data["summaries"])
+
+
+def test_portfolio_benchmark_flag_and_default(tmp_path: Path) -> None:
+    result = runner.invoke(cli.app, ["--json", "portfolio", str(EXAMPLE), "-b", "VTI"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["benchmark"]["symbol"] == "VTI"
+    toml = tmp_path / "p.toml"
+    toml.write_text('benchmark = "VTI"\n' + EXAMPLE.read_text())
+    result = runner.invoke(cli.app, ["--json", "portfolio", str(toml)])
+    assert json.loads(result.output)["benchmark"]["symbol"] == "VTI"
+    result = runner.invoke(cli.app, ["--json", "portfolio", str(EXAMPLE)])
+    assert json.loads(result.output)["benchmark"] is None
