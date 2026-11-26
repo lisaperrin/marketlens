@@ -73,3 +73,11 @@ def test_to_dict_is_json_friendly() -> None:
         "pnl",
         "weight",
     }
+
+
+def test_valuation_carries_latest_quote_timestamp() -> None:
+    valuation = value_portfolio(portfolio(), provider())
+    assert valuation.as_of == max(
+        q.as_of for q in (provider().get_quote(s) for s in ("AAPL", "MSFT"))
+    )
+    assert isinstance(valuation.to_dict()["as_of"], str)

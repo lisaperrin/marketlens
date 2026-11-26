@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Any
 
 from marketlens.data.models import Quote
@@ -42,10 +43,14 @@ class PortfolioValuation:
     total_pnl_pct: float
     day_change: float
     day_change_pct: float
+    as_of: datetime
+    """Timestamp of the newest quote used; quotes are delayed market data."""
 
     def to_dict(self) -> dict[str, Any]:
-        """Return a JSON-serialisable mapping."""
-        return dataclasses.asdict(self)
+        """Return a JSON-serialisable mapping (``as_of`` as an ISO string)."""
+        data = dataclasses.asdict(self)
+        data["as_of"] = self.as_of.isoformat()
+        return data
 
 
 def value_portfolio(portfolio: Portfolio, provider: MarketDataProvider) -> PortfolioValuation:
@@ -69,6 +74,7 @@ def value_portfolio(portfolio: Portfolio, provider: MarketDataProvider) -> Portf
         total_pnl_pct=_ratio(total_value - total_cost, total_cost),
         day_change=total_value - previous_value,
         day_change_pct=_ratio(total_value - previous_value, previous_value) * 100.0,
+        as_of=max(quote.as_of for _, quote in priced),
     )
 
 

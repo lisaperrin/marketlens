@@ -49,3 +49,45 @@ def test_volatility_is_rendered_without_a_sign() -> None:
     text = render(summary_table(summarize("AAPL", provider(), "1mo")))
     line = next(line for line in text.splitlines() if "Annualised volatility" in line)
     assert "+" not in line and "%" in line
+
+
+def test_dividend_yield_is_rendered_without_a_sign() -> None:
+    text = render(summary_table(summarize("AAPL", provider(), "1mo")))
+    line = next(line for line in text.splitlines() if "Dividend yield" in line)
+    assert "+" not in line and "0.50%" in line
+
+
+def test_summary_shows_data_timestamp() -> None:
+    from marketlens.report.tables import format_as_of
+
+    summary = summarize("AAPL", provider(), "1mo")
+    text = render(summary_table(summary))
+    assert format_as_of(summary.quote.as_of) in text
+    assert "delayed" in text.lower()
+
+
+def test_quote_table_shows_data_timestamp() -> None:
+    from marketlens.report.tables import format_as_of
+
+    quote = provider().get_quote("AAPL")
+    assert format_as_of(quote.as_of) in render(quote_table([quote]))
+
+
+def test_comparison_and_portfolio_show_data_timestamp() -> None:
+    from marketlens.report.tables import format_as_of
+
+    prov = provider()
+    stamp = format_as_of(prov.get_quote("AAPL").as_of)
+    assert stamp in render(comparison_table(compare(["AAPL", "MSFT"], prov, "1mo")))
+    portfolio = Portfolio("USD", (Holding("AAPL", 10, 150.0), Holding("MSFT", 5, 300.0)))
+    assert stamp in render(portfolio_table(value_portfolio(portfolio, prov)))
+
+
+def test_format_as_of_uses_local_time_and_zone() -> None:
+    from datetime import UTC, datetime
+
+    from marketlens.report.tables import format_as_of
+
+    moment = datetime(2026, 1, 2, 21, 0, tzinfo=UTC)
+    expected = moment.astimezone().strftime("%Y-%m-%d %H:%M %Z")
+    assert format_as_of(moment) == expected

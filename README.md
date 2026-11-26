@@ -27,7 +27,7 @@ Claude Code plugin (skills, agents and hooks) that all share one data layer.
 │ P/E trailing / forward                      39.60 / 33.63 │
 │ 52-week range                             243.42 / 360.83 │
 │ Sector / industry       Technology / Consumer Electronics │
-╰───────────────────────────────────────────────────────────╯
+╰──── Data as of 2026-11-26 17:16 CET · delayed market data ╯
 ```
 
 ## Quickstart (60 seconds)

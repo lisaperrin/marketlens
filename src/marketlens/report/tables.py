@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from datetime import datetime
 
 from rich.console import Group, RenderableType
 from rich.panel import Panel
@@ -13,6 +14,15 @@ from marketlens.analysis.summary import Comparison, TickerSummary
 from marketlens.data.models import Quote
 from marketlens.portfolio.valuation import PortfolioValuation
 from marketlens.report.brief import Brief
+
+
+def format_as_of(moment: datetime) -> str:
+    """Render a data timestamp in the user's local time zone, e.g. ``2026-11-26 17:16 CET``."""
+    return moment.astimezone().strftime("%Y-%m-%d %H:%M %Z")
+
+
+def _as_of_caption(moment: datetime) -> str:
+    return f"Data as of {format_as_of(moment)} · delayed market data"
 
 
 def _money(value: float) -> str:
@@ -54,7 +64,10 @@ def _big(value: int | None) -> str:
 
 def quote_table(quotes: Iterable[Quote]) -> Table:
     """One row per quote: price, change and currency."""
+    quotes = list(quotes)
     table = Table(title="Quotes", show_lines=False)
+    if quotes:
+        table.caption = _as_of_caption(max(q.as_of for q in quotes))
     table.add_column("Symbol", style="bold")
     table.add_column("Name")
     table.add_column("Price", justify="right")
@@ -90,14 +103,19 @@ def summary_table(summary: TickerSummary) -> RenderableType:
         ("RSI 14", _num(summary.rsi_14, 1)),
         ("Market cap", _big(fundamentals.market_cap)),
         ("P/E trailing / forward", _pair(fundamentals.trailing_pe, fundamentals.forward_pe)),
-        ("Dividend yield", _pct(fundamentals.dividend_yield)),
+        ("Dividend yield", _unsigned_pct(fundamentals.dividend_yield)),
         ("Beta", _num(fundamentals.beta)),
         ("52-week range", _pair(fundamentals.fifty_two_week_low, fundamentals.fifty_two_week_high)),
         ("Sector / industry", f"{fundamentals.sector or '—'} / {fundamentals.industry or '—'}"),
     ]
     for label, value in rows:
         table.add_row(label, value)
-    return Panel(table, title=f"[bold]{quote.symbol}[/bold] · {quote.name}", expand=False)
+    return Panel(
+        table,
+        title=f"[bold]{quote.symbol}[/bold] · {quote.name}",
+        subtitle=f"[dim]{_as_of_caption(quote.as_of)}[/dim]",
+        expand=False,
+    )
 
 
 def comparison_table(comparison: Comparison) -> RenderableType:
@@ -123,6 +141,8 @@ def comparison_table(comparison: Comparison) -> RenderableType:
             _num(s.fundamentals.trailing_pe),
         )
 
+    if comparison.summaries:
+        stats.caption = _as_of_caption(max(s.quote.as_of for s in comparison.summaries))
     matrix = Table(title="Correlation of daily returns")
     matrix.add_column("", style="bold")
     symbols = [str(c) for c in comparison.correlation.columns]
@@ -136,7 +156,11 @@ def comparison_table(comparison: Comparison) -> RenderableType:
 
 def portfolio_table(valuation: PortfolioValuation) -> Table:
     """Positions with P&L and weights, plus a totals row."""
-    table = Table(title=f"Portfolio ({valuation.base_currency})", show_footer=False)
+    table = Table(
+        title=f"Portfolio ({valuation.base_currency})",
+        caption=_as_of_caption(valuation.as_of),
+        show_footer=False,
+    )
     table.add_column("Symbol", style="bold")
     table.add_column("Shares", justify="right")
     table.add_column("Price", justify="right")
