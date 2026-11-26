@@ -74,7 +74,10 @@ uv run marketlens alerts -w AAPL,NVDA --portfolio portfolio.toml --rules alerts.
   SG&A, gross debt, cash, shares outstanding and the year-end close, exactly as Yahoo
   publishes them. Built for structural models such as
   [firmvalue](https://github.com/lisaperrin/firm-value-decomposition); the latest headcount
-  is on `Fundamentals.employees`.
+  is on `Fundamentals.employees`. `STATEMENT_FIELDS` lists the field names for schema checks.
+  If you type against `Statements` structurally with a `Protocol`, declare its members as
+  read-only properties: frozen-dataclass fields are read-only, and strict mypy rejects them
+  against settable protocol attributes.
 
 ### Your own portfolio
 
