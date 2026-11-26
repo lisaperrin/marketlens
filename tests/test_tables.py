@@ -91,3 +91,16 @@ def test_format_as_of_uses_local_time_and_zone() -> None:
     moment = datetime(2026, 1, 2, 21, 0, tzinfo=UTC)
     expected = moment.astimezone().strftime("%Y-%m-%d %H:%M %Z")
     assert format_as_of(moment) == expected
+
+
+def test_summary_timestamp_is_never_truncated_for_narrow_content() -> None:
+    from marketlens.report.tables import format_as_of
+
+    prov = FakeProvider(
+        quotes={"X": make_quote("X", 10.0, 9.0)},
+        histories={"X": make_history("X", [9.0, 10.0])},
+        fundamentals={"X": make_fundamentals("X")},
+    )
+    summary = summarize("X", prov, "1mo")
+    text = render(summary_table(summary))
+    assert f"{format_as_of(summary.quote.as_of)} (delayed)" in text

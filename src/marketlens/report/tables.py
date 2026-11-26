@@ -110,12 +110,9 @@ def summary_table(summary: TickerSummary) -> RenderableType:
     ]
     for label, value in rows:
         table.add_row(label, value)
-    return Panel(
-        table,
-        title=f"[bold]{quote.symbol}[/bold] · {quote.name}",
-        subtitle=f"[dim]{_as_of_caption(quote.as_of)}[/dim]",
-        expand=False,
-    )
+    table.add_section()
+    table.add_row("Data as of", Text(f"{format_as_of(quote.as_of)} (delayed)", style="dim"))
+    return Panel(table, title=f"[bold]{quote.symbol}[/bold] · {quote.name}", expand=False)
 
 
 def comparison_table(comparison: Comparison) -> RenderableType:
