@@ -7,7 +7,8 @@ import json
 import os
 import sqlite3
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from datetime import datetime
 from io import StringIO
 from pathlib import Path
@@ -129,8 +130,15 @@ class CachedProvider:
 
     # -- internals ----------------------------------------------------------------------
 
-    def _connect(self) -> sqlite3.Connection:
-        return sqlite3.connect(self._path)
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        """Open a connection that commits on success, rolls back on error and always closes."""
+        conn = sqlite3.connect(self._path, timeout=10.0)
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
 
     def _through[T](
         self,

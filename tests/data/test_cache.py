@@ -97,8 +97,10 @@ def test_corrupted_payload_is_treated_as_miss(setup, tmp_path: Path) -> None:  #
 
     inner, cached, _ = setup
     cached.get_quote("AAPL")
-    with sqlite3.connect(tmp_path / "cache.db") as conn:
+    conn = sqlite3.connect(tmp_path / "cache.db")
+    with conn:
         conn.execute("UPDATE entries SET payload = 'not json'")
+    conn.close()
     quote = cached.get_quote("AAPL")
     assert quote.price == 180.0
     assert inner.calls == 2
@@ -122,3 +124,29 @@ def test_errors_from_inner_provider_are_not_cached(setup) -> None:  # type: igno
     with pytest.raises(SymbolNotFoundError):
         cached.get_quote("ZZZZ")
     assert inner.calls == 2
+
+
+def test_every_sqlite_connection_is_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Unclosed connections leak file handles and warn on Python 3.13+."""
+    import sqlite3
+
+    from marketlens.data import cache as cache_module
+
+    opened: list[sqlite3.Connection] = []
+    real_connect = sqlite3.connect
+
+    def tracking_connect(*args, **kwargs):  # type: ignore[no-untyped-def]
+        conn = real_connect(*args, **kwargs)
+        opened.append(conn)
+        return conn
+
+    monkeypatch.setattr(cache_module.sqlite3, "connect", tracking_connect)
+    cached = CachedProvider(CountingProvider(), path=tmp_path / "cache.db")
+    cached.get_quote("AAPL")
+    cached.get_quote("AAPL")
+    cached.stats()
+    cached.clear()
+    assert len(opened) >= 4
+    for conn in opened:
+        with pytest.raises(sqlite3.ProgrammingError, match="closed"):
+            conn.execute("SELECT 1")
