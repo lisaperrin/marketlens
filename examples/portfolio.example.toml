@@ -1,0 +1,19 @@
+# Example MarketLens holdings file.
+# Copy to ./portfolio.toml (git-ignored) and edit.
+
+base_currency = "USD"
+
+[[holdings]]
+symbol = "AAPL"
+shares = 10
+cost_basis = 150.00   # average price paid per share
+
+[[holdings]]
+symbol = "MSFT"
+shares = 5
+cost_basis = 300.00
+
+[[holdings]]
+symbol = "VTI"
+shares = 20
+cost_basis = 210.50
