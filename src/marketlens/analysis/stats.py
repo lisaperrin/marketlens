@@ -1,0 +1,58 @@
+"""Return and risk statistics over closing-price series."""
+
+from __future__ import annotations
+
+import math
+
+import pandas as pd
+
+TRADING_DAYS_PER_YEAR = 252
+
+
+def daily_returns(close: pd.Series) -> pd.Series:
+    """Simple period-over-period returns, first observation dropped."""
+    return close.pct_change().dropna()
+
+
+def total_return(close: pd.Series) -> float:
+    """Fractional return from the first close to the last (``0.10`` means +10 %)."""
+    if len(close) < 2:
+        return 0.0
+    return float(close.iloc[-1] / close.iloc[0] - 1.0)
+
+
+def annualized_volatility(close: pd.Series, periods_per_year: int = TRADING_DAYS_PER_YEAR) -> float:
+    """Sample standard deviation of returns scaled by the square root of time."""
+    returns = daily_returns(close)
+    if len(returns) < 2:
+        return 0.0
+    return float(returns.std() * math.sqrt(periods_per_year))
+
+
+def max_drawdown(close: pd.Series) -> float:
+    """Largest peak-to-trough fall as a negative fraction (``-0.25`` means a 25 % fall)."""
+    if close.empty:
+        return 0.0
+    drawdown = close / close.cummax() - 1.0
+    return float(min(drawdown.min(), 0.0))
+
+
+def sharpe_ratio(
+    close: pd.Series,
+    risk_free: float = 0.0,
+    periods_per_year: int = TRADING_DAYS_PER_YEAR,
+) -> float:
+    """Annualised Sharpe ratio; ``NaN`` when returns have no variance.
+
+    ``risk_free`` is an annual rate (``0.04`` for 4 %) and is spread evenly per period.
+    """
+    excess = daily_returns(close) - risk_free / periods_per_year
+    if len(excess) < 2 or excess.std() == 0.0 or math.isnan(float(excess.std())):
+        return math.nan
+    return float(excess.mean() / excess.std() * math.sqrt(periods_per_year))
+
+
+def correlation_matrix(closes: dict[str, pd.Series]) -> pd.DataFrame:
+    """Pearson correlation of daily returns across symbols, aligned on shared dates."""
+    frame = pd.DataFrame({symbol: daily_returns(series) for symbol, series in closes.items()})
+    return frame.dropna(how="any").corr()
