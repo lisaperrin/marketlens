@@ -29,8 +29,10 @@ class BenchmarkComparison:
 
     symbol: str
     period: str
-    benchmark_return: float
-    excess_return: float
+    benchmark_return: float | None
+    """Benchmark total return over the dates both series share; ``None`` without overlap."""
+    excess_return: float | None
+    """Ticker return minus benchmark return over those same dates."""
     beta: float | None
 
     def to_dict(self) -> dict[str, Any]:
@@ -102,8 +104,9 @@ def _recent_cross(difference: pd.Series, min_abs: float) -> tuple[int, str] | No
     """Return (sessions ago, 'above'|'below') if ``difference`` changed sign recently.
 
     A change counts only if the previous :data:`CROSS_RUN` sessions were all on the other
-    side (zero counts as either side) and the new value's magnitude is at least ``min_abs``,
-    so a line flickering around zero is not reported as a crossover every day.
+    side and the new value's magnitude is at least ``min_abs``. Values within ``min_abs`` of
+    zero belong to either side, so a line flickering around zero is not a crossover every
+    day, while one that eases through zero before moving decisively is still caught.
     """
     values = difference.dropna().to_numpy(dtype="float64")
     for ago in range(SIGNAL_LOOKBACK):
@@ -114,9 +117,9 @@ def _recent_cross(difference: pd.Series, min_abs: float) -> tuple[int, str] | No
         run = values[index - CROSS_RUN : index]
         if abs(current) < min_abs:
             continue
-        if current > 0 and (run <= 0).all():
+        if current > 0 and (run <= min_abs).all():
             return ago, "above"
-        if current < 0 and (run >= 0).all():
+        if current < 0 and (run >= -min_abs).all():
             return ago, "below"
     return None
 
@@ -206,11 +209,14 @@ def compare_to_benchmark(
 ) -> BenchmarkComparison:
     """Build the benchmark comparison for one close series."""
     asset_return, benchmark_return = aligned_total_returns(close, benchmark_close)
+    excess = None
+    if asset_return is not None and benchmark_return is not None:
+        excess = asset_return - benchmark_return
     return BenchmarkComparison(
         symbol=benchmark_symbol,
         period=period,
         benchmark_return=benchmark_return,
-        excess_return=asset_return - benchmark_return,
+        excess_return=excess,
         beta=beta(close, benchmark_close),
     )
 

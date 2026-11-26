@@ -44,3 +44,10 @@ def test_missing_file_and_bad_values_raise(tmp_path: Path) -> None:
     no_symbol.write_text("[[rules]]\nprice_above = 1\n")
     with pytest.raises(HoldingsFileError, match="symbol"):
         load_rules(no_symbol)
+
+
+def test_duplicate_rule_symbols_are_rejected(tmp_path: Path) -> None:
+    path = tmp_path / "dup.toml"
+    path.write_text('[[rules]]\nsymbol = "AAPL"\n[[rules]]\nsymbol = "aapl"\n')
+    with pytest.raises(HoldingsFileError, match="duplicate"):
+        load_rules(path)

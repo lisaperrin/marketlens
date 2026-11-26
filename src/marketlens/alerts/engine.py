@@ -7,10 +7,11 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Any
 
-from marketlens.alerts.rules import AlertRules
+from marketlens.alerts.rules import AlertRules, Thresholds
 from marketlens.analysis.indicators import bollinger, rsi
 from marketlens.data.models import Period
 from marketlens.data.provider import MarketDataProvider
+from marketlens.errors import MarketLensError
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,24 +31,48 @@ class Alert:
         return dataclasses.asdict(self)
 
 
+@dataclass(frozen=True, slots=True)
+class AlertReport:
+    """What was checked, what fired, and which symbols could not be evaluated."""
+
+    symbols: list[str]
+    alerts: list[Alert]
+    errors: list[dict[str, str]]
+    """One ``{"symbol": ..., "error": ...}`` per symbol whose data could not be fetched."""
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serialisable mapping."""
+        return {
+            "symbols": list(self.symbols),
+            "alerts": [a.to_dict() for a in self.alerts],
+            "errors": list(self.errors),
+        }
+
+
 def evaluate(
     symbols: Iterable[str],
     rules: AlertRules,
     provider: MarketDataProvider,
     period: Period = "6mo",
-) -> list[Alert]:
-    """Check every symbol (watchlist plus rule symbols) and return what crossed, by symbol.
+) -> AlertReport:
+    """Check every symbol (watchlist plus rule symbols) and report what crossed, by symbol.
 
-    ``period`` is the history window used for RSI and the Bollinger Bands.
+    A symbol whose data cannot be fetched (unknown ticker, provider outage) is listed under
+    ``errors`` and the remaining symbols are still evaluated, so one bad ticker on a watchlist
+    never hides the others. ``period`` is the history window for RSI and the Bollinger Bands.
     """
     universe = sorted({s.upper() for s in symbols} | set(rules.symbols))
     alerts: list[Alert] = []
+    errors: list[dict[str, str]] = []
     for symbol in universe:
-        alerts.extend(_check(symbol, rules.for_symbol(symbol), provider, period))
-    return alerts
+        try:
+            alerts.extend(_check(symbol, rules.for_symbol(symbol), provider, period))
+        except MarketLensError as exc:
+            errors.append({"symbol": symbol, "error": str(exc)})
+    return AlertReport(symbols=universe, alerts=alerts, errors=errors)
 
 
-def _check(symbol: str, t: Any, provider: MarketDataProvider, period: Period) -> list[Alert]:
+def _check(symbol: str, t: Thresholds, provider: MarketDataProvider, period: Period) -> list[Alert]:
     found: list[Alert] = []
     quote = provider.get_quote(symbol)
     price, day = quote.price, quote.change_pct

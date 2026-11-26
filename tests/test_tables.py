@@ -152,8 +152,8 @@ def test_benchmark_rows_only_appear_when_requested() -> None:
     plain = render(summary_table(summarize("A", prov, "1y")))
     assert "Benchmark" not in plain and "SPY" not in plain
     with_bench = render(summary_table(summarize("A", prov, "1y", benchmark="SPY")))
-    assert "vs SPY" in with_bench and "Beta vs SPY" in with_bench and "2.00" in with_bench
-    assert "Excess return" in with_bench
+    assert "SPY return" in with_bench and "Beta vs SPY" in with_bench and "2.00" in with_bench
+    assert "Excess return" in with_bench and "shared dates" in with_bench
     cmp_plain = render(comparison_table(compare(["A", "SPY"], prov, "1y")))
     assert "Beta" not in cmp_plain
     cmp_bench = render(comparison_table(compare(["A", "SPY"], prov, "1y", benchmark="SPY")))
@@ -195,3 +195,24 @@ def test_indicator_table_lists_ema_macd_and_bands() -> None:
 
     text = render(indicator_table(summarize("AAPL", provider(), "1mo")))
     assert "EMA 20" in text and "MACD" in text and "Bollinger" in text
+
+
+def test_portfolio_caption_mentions_partial_beta_coverage() -> None:
+    from marketlens.data.fake import make_history
+
+    a = [100.0, 110.0, 104.5, 106.59, 107.6559]
+    prov = FakeProvider(
+        quotes={
+            "A": make_quote("A", 180.0, 175.0),
+            "B": make_quote("B", 100.0, 100.0),
+            "SPY": make_quote("SPY", 500.0, 490.0),
+        },
+        histories={
+            "A": make_history("A", a),
+            "B": make_history("B", [100.0, 100.5]),
+            "SPY": make_history("SPY", a),
+        },
+    )
+    portfolio = Portfolio("USD", (Holding("A", 10, 150.0), Holding("B", 18, 90.0)))
+    text = render(portfolio_table(value_portfolio(portfolio, prov, benchmark="SPY")))
+    assert "covers 50% of value" in text

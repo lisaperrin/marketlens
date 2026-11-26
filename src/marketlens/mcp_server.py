@@ -130,17 +130,20 @@ def check_alerts(
 ) -> dict[str, Any]:
     """Report crossed thresholds: RSI 70/30, day move of 5 % or more, Bollinger breakouts.
 
+    ``symbols`` may be empty only when ``rules_path`` or ``portfolio_path`` supplies symbols.
     ``rules_path`` points at an alert rules TOML with per-symbol price levels and overrides;
-    ``portfolio_path`` adds every holding of that file to the symbols checked. Returns the
-    symbols checked and a list of alerts (empty when nothing fired).
+    ``portfolio_path`` adds every holding of that file. Returns ``symbols`` (what was checked),
+    ``alerts`` (empty when nothing fired; ``value`` and ``threshold`` are in natural units:
+    percent for day_change_abs, RSI points, price for the rest) and ``errors`` for symbols
+    whose data could not be fetched.
     """
     rules = load_rules(Path(rules_path).expanduser()) if rules_path else DEFAULT_RULES
     universe = [s.upper() for s in symbols]
     if portfolio_path:
         universe += [h.symbol for h in load_portfolio(Path(portfolio_path).expanduser()).holdings]
-    universe = sorted(set(universe) | set(rules.symbols))
-    fired = evaluate(universe, rules, provider_factory())
-    return {"symbols": universe, "alerts": [a.to_dict() for a in fired]}
+    if not universe and not rules.symbols:
+        raise ToolError("provide symbols, or a rules_path / portfolio_path that lists some")
+    return evaluate(universe, rules, provider_factory()).to_dict()
 
 
 def main() -> None:

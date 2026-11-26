@@ -36,7 +36,7 @@ def call(tool: str, **arguments: Any) -> dict[str, Any]:
     return dict(result.structured_content)
 
 
-def test_server_exposes_the_five_tools() -> None:
+def test_server_exposes_every_tool() -> None:
     names = {tool.name for tool in asyncio.run(mcp_server.server.list_tools())}
     assert names == {
         "get_quote",
@@ -137,3 +137,8 @@ def test_check_alerts_tool(tmp_path: Path) -> None:
     assert "price_above" in [a["kind"] for a in data["alerts"] if a["symbol"] == "AAPL"]
     names = {tool.name for tool in asyncio.run(mcp_server.server.list_tools())}
     assert "check_alerts" in names
+
+
+def test_check_alerts_rejects_an_empty_universe() -> None:
+    with pytest.raises(ToolError, match="symbols"):
+        call("check_alerts", symbols=[])

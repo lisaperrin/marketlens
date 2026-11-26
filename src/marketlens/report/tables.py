@@ -11,7 +11,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from marketlens.alerts.engine import Alert
+from marketlens.alerts.engine import AlertReport
 from marketlens.analysis.summary import Comparison, TickerSummary
 from marketlens.data.models import Quote
 from marketlens.portfolio.valuation import PortfolioValuation
@@ -131,9 +131,10 @@ def summary_table(summary: TickerSummary) -> RenderableType:
     if (bench := summary.benchmark) is not None:
         table.add_section()
         table.add_row(
-            f"vs {bench.symbol} ({bench.period})", _pct(bench.benchmark_return, fraction=True)
+            f"{bench.symbol} return (shared dates)",
+            _pct(bench.benchmark_return, fraction=True),
         )
-        table.add_row("Excess return", _pct(bench.excess_return, fraction=True))
+        table.add_row("Excess return (shared dates)", _pct(bench.excess_return, fraction=True))
         table.add_row(f"Beta vs {bench.symbol}", _num(bench.beta))
     table.add_section()
     table.add_row("Data as of", Text(f"{format_as_of(quote.as_of)} (delayed)", style="dim"))
@@ -167,7 +168,15 @@ def indicator_table(summary: TickerSummary) -> Table:
 def _above_below(price: float, level: float | None) -> str:
     if level is None:
         return ""
+    if price == level:
+        return "price at level"
     return "price above" if price > level else "price below"
+
+
+def _histogram_note(value: float | None) -> str:
+    if value is None or value == 0.0:
+        return "" if value is None else "flat"
+    return "bullish" if value > 0 else "bearish"
 
 
 def comparison_table(comparison: Comparison) -> RenderableType:
@@ -220,6 +229,8 @@ def portfolio_table(valuation: PortfolioValuation) -> Table:
     caption = _as_of_caption(valuation.as_of)
     if (bench := valuation.benchmark) is not None:
         beta_text = "n/a" if bench.weighted_beta is None else f"{bench.weighted_beta:.2f}"
+        if bench.weighted_beta is not None and bench.beta_coverage < 0.999:
+            beta_text += f" (covers {bench.beta_coverage * 100:.0f}% of value)"
         caption = (
             f"Benchmark {bench.symbol}: day {bench.day_change_pct:+.2f}% · "
             f"portfolio beta {beta_text} ({bench.period})\n{caption}"
@@ -276,14 +287,21 @@ def brief_renderable(brief: Brief) -> RenderableType:
     return Group(*parts)
 
 
-def alerts_table(alerts: list[Alert], symbols: list[str]) -> RenderableType:
-    """One row per fired alert, or a one-line all-clear."""
-    if not alerts:
-        return Text(f"No alerts for {len(symbols)} symbol(s).", style="green")
-    table = _table(f"Alerts · {len(alerts)} fired across {len(symbols)} symbol(s)")
-    _col(table, "Symbol", style="bold")
-    _col(table, "Kind")
-    table.add_column("Message")
-    for alert in alerts:
-        table.add_row(alert.symbol, alert.kind, alert.message)
-    return table
+def alerts_table(report: AlertReport) -> RenderableType:
+    """One row per fired alert (or a one-line all-clear), plus a note on skipped symbols."""
+    checked = len(report.symbols) - len(report.errors)
+    parts: list[RenderableType] = []
+    if not report.alerts:
+        parts.append(Text(f"No alerts for {checked} symbol(s).", style="green"))
+    else:
+        table = _table(f"Alerts · {len(report.alerts)} fired across {checked} symbol(s)")
+        _col(table, "Symbol", style="bold")
+        _col(table, "Kind")
+        table.add_column("Message")
+        for alert in report.alerts:
+            table.add_row(alert.symbol, alert.kind, alert.message)
+        parts.append(table)
+    if report.errors:
+        skipped = "; ".join(f"{e['symbol']} ({e['error']})" for e in report.errors)
+        parts.append(Text(f"Skipped {len(report.errors)} symbol(s): {skipped}", style="yellow"))
+    return Group(*parts)

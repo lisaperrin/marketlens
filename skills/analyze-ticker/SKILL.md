@@ -36,7 +36,9 @@ The optional second argument is the history window (`1mo`, `3mo`, `6mo`, `1y`, `
 If the user asks how the stock did "against the market", "vs the index" or names a benchmark,
 pass `benchmark="<SYMBOL>"` (SPY for US large caps, VWCE.DE for a global EUR view, or what the
 user named). Report the benchmark return, the excess return and beta in one sentence each.
-Do not add a benchmark otherwise.
+Both returns are computed over the trading days the two series share, so when the benchmark
+has a shorter history they will not match the headline total return; say "over the shared
+period" when that is the case. Do not add a benchmark otherwise.
 
 ## Rules
 

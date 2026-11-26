@@ -88,6 +88,8 @@ def load_rules(path: Path) -> AlertRules:
         if not isinstance(symbol, str) or not symbol.strip():
             raise HoldingsFileError(f"rules[{index}] is missing a 'symbol'")
         symbol = symbol.strip().upper()
+        if symbol in per_symbol:
+            raise HoldingsFileError(f"{path}: duplicate rule for {symbol}")
         per_symbol[symbol] = defaults.merged(_overrides(entry, symbol))
     return AlertRules(defaults=defaults, per_symbol=per_symbol)
 

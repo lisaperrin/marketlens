@@ -202,3 +202,30 @@ def test_alerts_without_symbols_fails_clearly() -> None:
     result = runner.invoke(cli.app, ["alerts"])
     assert result.exit_code != 0
     assert "watchlist" in result.output.lower()
+
+
+def test_alerts_names_unknown_symbols_but_still_exits_zero() -> None:
+    result = runner.invoke(cli.app, ["alerts", "--watchlist", "MSFT,ZZZZ"])
+    assert result.exit_code == 0, result.output
+    assert "ZZZZ" in result.output and "skipped" in result.output.lower()
+    result = runner.invoke(cli.app, ["--json", "alerts", "--watchlist", "MSFT,ZZZZ"])
+    data = json.loads(result.output)
+    assert data["errors"][0]["symbol"] == "ZZZZ"
+
+
+def test_brief_ignores_the_holdings_file_benchmark(tmp_path: Path) -> None:
+    toml = tmp_path / "p.toml"
+    toml.write_text('benchmark = "VTI"\n' + EXAMPLE.read_text())
+    calls: list[str] = []
+    provider = cli.get_provider()
+    original = provider.get_history
+
+    def counting(symbol: str, period: str = "1y", interval: str = "1d"):  # type: ignore[no-untyped-def]
+        calls.append(symbol)
+        return original(symbol, period, interval)
+
+    provider.get_history = counting  # type: ignore[method-assign]
+    result = runner.invoke(cli.app, ["--json", "brief", "--portfolio", str(toml)])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["portfolio"]["benchmark"] is None
+    assert calls == []

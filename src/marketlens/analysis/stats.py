@@ -85,7 +85,11 @@ def beta(close: pd.Series, benchmark_close: pd.Series) -> float | None:
     return covariance / variance
 
 
-def aligned_total_returns(close: pd.Series, benchmark_close: pd.Series) -> tuple[float, float]:
-    """Total return of each series over the date range both of them cover."""
+def aligned_total_returns(
+    close: pd.Series, benchmark_close: pd.Series
+) -> tuple[float | None, float | None]:
+    """Total return of each series over the dates both cover; ``None`` with fewer than 2."""
     shared = close.index.intersection(benchmark_close.index)
+    if len(shared) < 2:
+        return None, None
     return total_return(close.loc[shared]), total_return(benchmark_close.loc[shared])

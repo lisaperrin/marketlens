@@ -40,7 +40,9 @@ class PortfolioBenchmark:
     period: str
     day_change_pct: float
     weighted_beta: float | None
-    """Position weights times each position's beta over ``period``; ``None`` if no beta exists."""
+    """Weighted average beta of the positions that have one, over ``period``."""
+    beta_coverage: float
+    """Share of portfolio value (0 to 1) covered by positions with a beta."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,6 +123,7 @@ def _benchmark(
         period=period,
         day_change_pct=bench_quote.change_pct,
         weighted_beta=weighted_beta,
+        beta_coverage=covered,
     )
 
 

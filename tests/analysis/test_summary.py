@@ -1,3 +1,4 @@
+import pandas as pd
 import pytest
 
 from marketlens.analysis.summary import TickerSummary, compare, summarize
@@ -168,3 +169,28 @@ def test_calm_series_has_no_signals() -> None:
     closes = [100.0 + (0.3 if i % 2 else -0.3) for i in range(60)]
     summary = summarize("AAPL", provider_with("AAPL", closes))
     assert summary.signals == ()
+
+
+def test_benchmark_without_overlap_reports_none_not_zero() -> None:
+    from marketlens.analysis.summary import compare_to_benchmark
+    from marketlens.data.fake import make_history
+
+    a = make_history("A", [100.0, 101.0, 102.0], start="2024-01-01")["Close"]
+    b = make_history("B", [50.0, 51.0, 52.0], start="2025-01-01")["Close"]
+    bench = compare_to_benchmark(a, "B", b, "1y")
+    assert bench.benchmark_return is None and bench.excess_return is None and bench.beta is None
+    assert bench.to_dict()["excess_return"] is None
+
+
+def test_crossover_that_eases_through_zero_is_still_detected() -> None:
+    from marketlens.analysis.summary import _recent_cross
+
+    histogram = pd.Series([-1.0, -1.0, -1.0, 0.01, 0.5, 0.6])
+    assert _recent_cross(histogram, min_abs=0.05) == (1, "above")
+
+
+def test_flickering_line_is_not_a_crossover() -> None:
+    from marketlens.analysis.summary import _recent_cross
+
+    flicker = pd.Series([0.02, -0.02, 0.02, -0.02, 0.02, -0.02, 0.02])
+    assert _recent_cross(flicker, min_abs=0.05) is None

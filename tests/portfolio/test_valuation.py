@@ -141,3 +141,23 @@ def test_weighted_beta_is_none_when_no_position_has_a_beta() -> None:
     valuation = value_portfolio(short, flat_prov, benchmark="SPY")
     assert valuation.benchmark is not None
     assert valuation.benchmark.weighted_beta is None
+    assert valuation.benchmark.beta_coverage == 0.0
+
+
+def test_beta_coverage_reports_share_of_value_with_a_beta() -> None:
+    from marketlens.data.fake import make_history
+
+    prov = provider_with_histories()
+    # MSFT gets a 2-point history: no beta; AAPL keeps its beta of 2
+    partial = FakeProvider(
+        quotes={s: prov.get_quote(s) for s in ("AAPL", "MSFT", "SPY")},
+        histories={
+            "AAPL": prov.get_history("AAPL"),
+            "SPY": prov.get_history("SPY"),
+            "MSFT": make_history("MSFT", [400.0, 401.0]),
+        },
+    )
+    bench = value_portfolio(portfolio(), partial, benchmark="SPY").benchmark
+    assert bench is not None
+    assert bench.beta_coverage == pytest.approx(1800 / 3800)
+    assert bench.weighted_beta == pytest.approx(2.0)

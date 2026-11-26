@@ -237,6 +237,7 @@ def alerts(
     """Report thresholds that were crossed: RSI, day move, price levels, Bollinger breakouts.
 
     Prints only what fired. Symbols come from --watchlist, --portfolio and the rules file.
+    A symbol whose data cannot be fetched is listed as skipped; the others are still checked.
     """
     symbols = [s.strip().upper() for s in (watchlist or "").split(",") if s.strip()]
     if not symbols and portfolio_path is None and rules_path is None:
@@ -246,13 +247,9 @@ def alerts(
         rules = load_rules(rules_path) if rules_path else DEFAULT_RULES
         if portfolio_path is not None:
             symbols.extend(h.symbol for h in load_portfolio(portfolio_path).holdings)
-        universe = sorted(set(symbols) | set(rules.symbols))
-        fired = evaluate(universe, rules, get_provider(state.no_cache))
-        _emit(
-            {"symbols": universe, "alerts": [a.to_dict() for a in fired]},
-            alerts_table(fired, universe),
-        )
-        if fail_on_alert and fired:
+        report = evaluate(symbols, rules, get_provider(state.no_cache))
+        _emit(report.to_dict(), alerts_table(report))
+        if fail_on_alert and report.alerts:
             raise typer.Exit(code=3)
 
     _run(action)

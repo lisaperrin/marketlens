@@ -144,8 +144,9 @@ Today's `analyze`, `compare` and `portfolio` output is unchanged when no new opt
 
 - `marketlens alerts [--watchlist A,B] [--portfolio portfolio.toml] [--rules alerts.toml]`
   prints only what crossed, one line per alert, and nothing (plus a "no alerts" line) otherwise.
-  `--json` lists alerts as dicts. Exit code is 0 either way; `--fail-on-alert` returns 3 when
-  anything fired, for cron use.
+  `--json` returns `{"symbols": [...], "alerts": [...], "errors": [...]}` so a script knows what
+  was checked and which symbols could not be fetched. Exit code is 0 either way;
+  `--fail-on-alert` returns 3 when anything fired, for cron use.
 - Default rules for every symbol: RSI ≥ 70 or ≤ 30; absolute day change ≥ 5 %; close outside
   the Bollinger bands. `alerts.toml` overrides or adds per-symbol thresholds:
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -66,6 +67,8 @@ def build_brief(
     """Quote the watchlist and value the portfolio if a holdings file is given."""
     valuation = None
     if portfolio_path is not None:
-        valuation = value_portfolio(load_portfolio(portfolio_path), provider)
+        # A brief is a quote scan: never pull per-holding histories for the file's benchmark.
+        portfolio = dataclasses.replace(load_portfolio(portfolio_path), benchmark=None)
+        valuation = value_portfolio(portfolio, provider)
     quotes = tuple(provider.get_quote(symbol.upper()) for symbol in watchlist or [])
     return Brief(generated_at=datetime.now(tz=UTC), watchlist=quotes, portfolio=valuation)
