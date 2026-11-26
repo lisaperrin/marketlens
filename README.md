@@ -176,6 +176,8 @@ Design notes and the plans I worked from: `docs/design.md`, `docs/plan.md`,
 
 ## Changelog
 
+- 0.3.1: cache rows written by an older version of a model are refetched instead of decoded
+  with missing fields (0.3.0 could report `employees=None` from a 0.2.0 cache for a day).
 - 0.3.0: `get_statements`, `Fundamentals.employees`, `py.typed`.
 - 0.2.0: benchmark comparison, EMA/MACD/Bollinger + signals, `alerts`.
 - 0.1.0: provider + cache, analysis, portfolio, CLI, MCP server, plugin.

@@ -196,3 +196,43 @@ def test_statements_are_cached_for_a_day(tmp_path: Path) -> None:
     clock.now += TTL_STATEMENTS + 1
     cached.get_statements("NVDA", years=3)
     assert inner.calls == 2
+
+
+def test_row_written_by_an_older_schema_is_a_miss(setup, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
+    """A cached Fundamentals row from before `employees` existed must be refetched, not decoded
+    with employees=None, which would be indistinguishable from 'Yahoo has no headcount'."""
+    import json
+    import sqlite3
+
+    inner, cached, _ = setup
+    cached.get_fundamentals("AAPL")
+    conn = sqlite3.connect(tmp_path / "cache.db")
+    with conn:
+        (payload,) = conn.execute(
+            "SELECT payload FROM entries WHERE kind = 'fundamentals'"
+        ).fetchone()
+        old = json.loads(payload)
+        del old["employees"]  # simulate a row written by 0.2.0
+        conn.execute(
+            "UPDATE entries SET payload = ? WHERE kind = 'fundamentals'", (json.dumps(old),)
+        )
+    conn.close()
+    assert cached.get_fundamentals("AAPL") == make_fundamentals("AAPL")
+    assert inner.calls == 2, "stale-schema row must be refetched"
+
+
+def test_row_with_unknown_extra_field_is_a_miss(setup, tmp_path: Path) -> None:  # type: ignore[no-untyped-def]
+    import json
+    import sqlite3
+
+    inner, cached, _ = setup
+    cached.get_quote("AAPL")
+    conn = sqlite3.connect(tmp_path / "cache.db")
+    with conn:
+        (payload,) = conn.execute("SELECT payload FROM entries WHERE kind = 'quote'").fetchone()
+        data = json.loads(payload)
+        data["renamed_later"] = 1
+        conn.execute("UPDATE entries SET payload = ? WHERE kind = 'quote'", (json.dumps(data),))
+    conn.close()
+    assert cached.get_quote("AAPL").price == 180.0
+    assert inner.calls == 2

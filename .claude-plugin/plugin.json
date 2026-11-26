@@ -1,6 +1,6 @@
 {
   "name": "marketlens",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Stock market research for Claude Code: ticker analysis, comparisons, portfolio reviews and a daily brief, powered by yfinance through an MCP server.",
   "author": {
     "name": "Lisa Perrin"

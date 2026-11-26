@@ -127,7 +127,7 @@ class CachedProvider:
             TTL_FUNDAMENTALS,
             fetch=lambda: self._inner.get_fundamentals(symbol),
             encode=_encode_dataclass,
-            decode=lambda raw: Fundamentals(**json.loads(raw)),
+            decode=lambda raw: Fundamentals(**_checked(json.loads(raw), Fundamentals)),
         )
         return fundamentals
 
@@ -253,13 +253,27 @@ def _encode_statements(records: list[Statements]) -> str:
 def _decode_statements(raw: str) -> list[Statements]:
     records = []
     for data in json.loads(raw):
+        data = _checked(data, Statements)
         data["fiscal_year_end"] = date.fromisoformat(data["fiscal_year_end"])
         records.append(Statements(**data))
     return records
 
 
+def _checked(data: Any, cls: type) -> dict[str, Any]:
+    """Return ``data`` if its keys are exactly the fields of ``cls``; otherwise raise.
+
+    A row written by an older or newer version of a dataclass would otherwise decode with
+    defaults filled in, and a missing value would be indistinguishable from "not available".
+    Raising turns the row into a cache miss.
+    """
+    expected = {f.name for f in dataclasses.fields(cls)}
+    if not isinstance(data, dict) or set(data) != expected:
+        raise ValueError(f"cached {cls.__name__} row does not match the current schema")
+    return data
+
+
 def _decode_quote(raw: str) -> Quote:
-    data = json.loads(raw)
+    data = _checked(json.loads(raw), Quote)
     data["as_of"] = datetime.fromisoformat(data["as_of"])
     return Quote(**data)
 

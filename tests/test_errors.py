@@ -16,4 +16,4 @@ def test_symbol_not_found_carries_symbol_and_message() -> None:
 
 
 def test_version_is_exposed() -> None:
-    assert marketlens.__version__ == "0.3.0"
+    assert marketlens.__version__ == "0.3.1"
