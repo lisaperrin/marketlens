@@ -117,3 +117,17 @@ def test_provider_silences_yfinance_logging() -> None:
     logging.getLogger("yfinance").setLevel(logging.NOTSET)
     YFinanceProvider()
     assert logging.getLogger("yfinance").getEffectiveLevel() >= logging.CRITICAL
+
+
+class NoPreviousCloseTicker(StubTicker):
+    def __init__(self, symbol: str) -> None:
+        super().__init__(symbol)
+        self.fast_info = {"lastPrice": 180.0, "currency": "USD"}
+
+
+def test_missing_previous_close_is_not_invented(monkeypatch: pytest.MonkeyPatch) -> None:
+    from marketlens.errors import DataUnavailableError
+
+    monkeypatch.setattr(yfinance_provider, "yf", SimpleNamespace(Ticker=NoPreviousCloseTicker))
+    with pytest.raises(DataUnavailableError, match="previous close"):
+        YFinanceProvider().get_quote("AAPL")

@@ -28,6 +28,13 @@ def _pct(value: float | None, *, fraction: bool = False) -> Text:
     return Text(f"{shown:+.2f}%", style=style)
 
 
+def _unsigned_pct(value: float | None, *, fraction: bool = False) -> str:
+    """Format a magnitude such as volatility: no sign, no colour."""
+    if value is None:
+        return "—"
+    return f"{value * 100.0 if fraction else value:.2f}%"
+
+
 def _num(value: float | None, digits: int = 2) -> str:
     return "—" if value is None else f"{value:,.{digits}f}"
 
@@ -76,7 +83,7 @@ def summary_table(summary: TickerSummary) -> RenderableType:
         ("Price", f"{_money(quote.price)} {quote.currency}"),
         ("Day change", _pct(quote.change_pct)),
         (f"Total return ({summary.period})", _pct(summary.total_return, fraction=True)),
-        ("Annualised volatility", _pct(summary.annualized_volatility, fraction=True)),
+        ("Annualised volatility", _unsigned_pct(summary.annualized_volatility, fraction=True)),
         ("Max drawdown", _pct(summary.max_drawdown, fraction=True)),
         ("Sharpe ratio", _num(summary.sharpe_ratio)),
         ("SMA 50 / 200", _pair(summary.sma_50, summary.sma_200)),
@@ -109,7 +116,7 @@ def comparison_table(comparison: Comparison) -> RenderableType:
             s.symbol,
             _money(s.quote.price),
             _pct(s.total_return, fraction=True),
-            _pct(s.annualized_volatility, fraction=True),
+            _unsigned_pct(s.annualized_volatility, fraction=True),
             _pct(s.max_drawdown, fraction=True),
             _num(s.sharpe_ratio),
             _num(s.rsi_14, 1),

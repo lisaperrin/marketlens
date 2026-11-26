@@ -62,8 +62,23 @@ class CachedProvider:
         self._path = path or default_cache_path()
         self._clock = clock
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        with self._connect() as conn:
-            conn.execute(_SCHEMA)
+        self._ensure_schema()
+
+    def _ensure_schema(self) -> None:
+        """Create the table; if the file is not a usable database, move it aside and start over."""
+        try:
+            with self._connect() as conn:
+                conn.execute(_SCHEMA)
+        except sqlite3.DatabaseError:
+            self._quarantine()
+            with self._connect() as conn:
+                conn.execute(_SCHEMA)
+
+    def _quarantine(self) -> None:
+        """Rename an unreadable cache file so it is kept for inspection but no longer used."""
+        if self._path.exists():
+            stamp = time.strftime("%Y%m%d-%H%M%S")
+            self._path.rename(self._path.with_name(f"{self._path.name}.corrupt-{stamp}"))
 
     # -- MarketDataProvider -------------------------------------------------------------
 
@@ -110,17 +125,28 @@ class CachedProvider:
     # -- maintenance --------------------------------------------------------------------
 
     def clear(self) -> int:
-        """Delete every cached row and return how many were removed."""
-        with self._connect() as conn:
-            cursor = conn.execute("DELETE FROM entries")
-            return int(cursor.rowcount)
+        """Delete every cached row and return how many were removed.
+
+        An unreadable cache file counts as one removed entry: it is moved aside and recreated.
+        """
+        try:
+            with self._connect() as conn:
+                return int(conn.execute("DELETE FROM entries").rowcount)
+        except sqlite3.DatabaseError:
+            self._quarantine()
+            self._ensure_schema()
+            return 1
 
     def stats(self) -> dict[str, int]:
-        """Return the number of rows stored per kind."""
+        """Return the number of rows stored per kind (all zero if the file is unreadable)."""
         counts = dict.fromkeys(KINDS, 0)
-        with self._connect() as conn:
-            for kind, count in conn.execute("SELECT kind, COUNT(*) FROM entries GROUP BY kind"):
-                counts[str(kind)] = int(count)
+        try:
+            with self._connect() as conn:
+                rows = conn.execute("SELECT kind, COUNT(*) FROM entries GROUP BY kind").fetchall()
+        except sqlite3.DatabaseError:
+            return counts
+        for kind, count in rows:
+            counts[str(kind)] = int(count)
         return counts
 
     @property
@@ -151,24 +177,41 @@ class CachedProvider:
         decode: Callable[[str], T],
     ) -> T:
         now = self._clock()
-        with self._connect() as conn:
-            row = conn.execute(
-                "SELECT fetched_at, payload FROM entries WHERE kind = ? AND key = ?",
-                (kind, key),
-            ).fetchone()
+        row = self._read(kind, key)
         if row is not None and now - float(row[0]) < ttl:
             try:
                 return decode(str(row[1]))
             except Exception:
                 pass
         value = fetch()
-        with self._connect() as conn:
-            conn.execute(
-                "INSERT OR REPLACE INTO entries (kind, key, fetched_at, payload) "
-                "VALUES (?, ?, ?, ?)",
-                (kind, key, now, encode(value)),
-            )
+        self._write(kind, key, now, encode(value))
         return value
+
+    def _read(self, kind: str, key: str) -> tuple[float, str] | None:
+        """Fetch a row; an unreadable database is a miss, and the file is recreated."""
+        try:
+            with self._connect() as conn:
+                row = conn.execute(
+                    "SELECT fetched_at, payload FROM entries WHERE kind = ? AND key = ?",
+                    (kind, key),
+                ).fetchone()
+        except sqlite3.DatabaseError:
+            self._quarantine()
+            self._ensure_schema()
+            return None
+        return None if row is None else (float(row[0]), str(row[1]))
+
+    def _write(self, kind: str, key: str, fetched_at: float, payload: str) -> None:
+        """Store a row; failing to cache is never a reason to fail the request."""
+        try:
+            with self._connect() as conn:
+                conn.execute(
+                    "INSERT OR REPLACE INTO entries (kind, key, fetched_at, payload) "
+                    "VALUES (?, ?, ?, ?)",
+                    (kind, key, fetched_at, payload),
+                )
+        except sqlite3.DatabaseError:
+            return
 
 
 def _encode_dataclass(value: Any) -> str:

@@ -3,16 +3,13 @@
 # live MarketLens tools. Emits JSON with additionalContext, or nothing at all.
 set -u
 command -v python3 >/dev/null 2>&1 || exit 0
-MARKETLENS_HOOK_PAYLOAD=$(cat)
-export MARKETLENS_HOOK_PAYLOAD
-python3 - <<'PY'
+python3 -c '
 import json
-import os
 import re
 import sys
 
 try:
-    payload = json.loads(os.environ.get("MARKETLENS_HOOK_PAYLOAD") or "{}")
+    payload = json.load(sys.stdin)
 except (json.JSONDecodeError, ValueError):
     sys.exit(0)
 
@@ -38,5 +35,5 @@ print(json.dumps({
         "additionalContext": context,
     }
 }))
-PY
+'
 exit 0

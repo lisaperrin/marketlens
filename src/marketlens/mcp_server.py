@@ -1,6 +1,6 @@
 """A Model Context Protocol server exposing MarketLens to Claude and other MCP clients.
 
-Run it over stdio with ``marketlens-mcp`` (or ``uvx --from marketlens marketlens-mcp``).
+Run it over stdio with ``marketlens-mcp`` (or ``uvx --from <path to this repo> marketlens-mcp``).
 Every tool returns plain JSON-compatible dicts; MarketLens errors surface as tool errors
 with a readable message, never as opaque server failures.
 """
@@ -73,7 +73,7 @@ def get_quote(symbol: str) -> dict[str, Any]:
 
 @server.tool()
 @_tool_errors
-def analyze_ticker(symbol: str, period: str = "1y") -> dict[str, Any]:
+def analyze_ticker(symbol: str, period: Period = "1y") -> dict[str, Any]:
     """Return, volatility, drawdown, Sharpe, SMA 50/200, RSI and fundamentals for one symbol.
 
     ``period`` is the history window: 1mo, 3mo, 6mo, 1y, 2y, 5y or max.
@@ -83,7 +83,7 @@ def analyze_ticker(symbol: str, period: str = "1y") -> dict[str, Any]:
 
 @server.tool()
 @_tool_errors
-def compare_tickers(symbols: list[str], period: str = "1y") -> dict[str, Any]:
+def compare_tickers(symbols: list[str], period: Period = "1y") -> dict[str, Any]:
     """Side-by-side summaries for two or more symbols plus the correlation of daily returns."""
     if len(symbols) < 2:
         raise ToolError("provide at least two symbols to compare")

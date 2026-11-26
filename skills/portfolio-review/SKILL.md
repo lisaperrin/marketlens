@@ -43,6 +43,8 @@ cost_basis = 150.00   # average price paid per share
 
 ## Rules
 
+- Percent conventions in the tool output: `pnl_pct`, `total_pnl_pct` and `weight` are
+  fractions (`0.20` is 20 %); `day_change_pct` is already a percentage (`2.86` is 2.86 %).
 - Holdings are personal data. Do not paste the file into chat beyond what the review needs,
   and never write it to a location outside the project.
 - Valuation ignores currency conversion; say so if positions quote in different currencies.

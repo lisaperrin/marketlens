@@ -18,7 +18,7 @@ Claude Code plugin (skills, agents and hooks) that all share one data layer.
 │ Price                                          355.58 USD │
 │ Day change                                         +0.63% │
 │ Total return (6mo)                                +15.51% │
-│ Annualised volatility                             +27.43% │
+│ Annualised volatility                              27.43% │
 │ Max drawdown                                      -12.71% │
 │ Sharpe ratio                                         1.17 │
 │ SMA 50 / 200                                   342.84 / — │
@@ -70,7 +70,12 @@ The repository is itself a Claude Code plugin. Install it in one step:
 /plugin install marketlens --marketplace lisaperrin/marketlens
 ```
 
-Or in two: `/plugin marketplace add lisaperrin/marketlens` then `/plugin install marketlens`.
+Or in two: `/plugin marketplace add lisaperrin/marketlens` then
+`/plugin install marketlens@marketlens-marketplace`.
+
+The MCP server is launched with `uvx` from the installed plugin folder, so
+[uv](https://docs.astral.sh/uv/) must be on your PATH. The first launch builds the server's
+environment and can take a minute; later launches are instant.
 
 What you get:
 
@@ -126,7 +131,7 @@ Key decisions:
 
 ```bash
 uv sync --all-groups
-uv run pytest -q                      # 125 tests, offline
+uv run pytest -q                      # whole suite, offline, a few seconds
 uv run ruff check . && uv run ruff format --check . && uv run mypy
 uv run python scripts/validate_plugin.py --with-claude-cli
 ```

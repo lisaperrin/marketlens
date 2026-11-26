@@ -39,6 +39,27 @@ def test_format_hook_reformats_the_edited_python_file(tmp_path: Path) -> None:
     assert formatted.startswith("import os\nimport sys\n")
 
 
+def test_format_hook_works_when_project_path_has_a_space(tmp_path: Path) -> None:
+    project_link = tmp_path / "my projects" / "marketlens"
+    project_link.parent.mkdir()
+    project_link.symlink_to(ROOT, target_is_directory=True)
+    target = tmp_path / "messy.py"
+    target.write_text("x=[1,2,\n3]\nprint(x)\n")
+    env = {**os.environ, "CLAUDE_PROJECT_DIR": str(project_link)}
+    result = subprocess.run(
+        [str(ROOT / ".claude/hooks/format-python.sh")],
+        input=json.dumps({"tool_input": {"file_path": str(target)}}),
+        capture_output=True,
+        text=True,
+        cwd=tmp_path,
+        env=env,
+        timeout=120,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert target.read_text() == "x = [1, 2, 3]\nprint(x)\n"
+
+
 def test_format_hook_ignores_non_python_files(tmp_path: Path) -> None:
     target = tmp_path / "notes.md"
     target.write_text("# hi\n")
@@ -71,6 +92,11 @@ def run_guard(command: str) -> subprocess.CompletedProcess[str]:
         "git push origin +main",
         "git commit -m x --no-verify",
         "git reset --hard HEAD~3",
+        "git status; git push --force origin main",
+        "git add -A\ngit commit -m x --no-verify",
+        "git -C . push --force origin main",
+        "git --no-pager -c user.name=x push -f origin main",
+        "cd repo && git push --force origin main",
     ],
 )
 def test_guard_blocks_destructive_git(command: str) -> None:
@@ -89,6 +115,9 @@ def test_guard_blocks_destructive_git(command: str) -> None:
         "git push --force-with-lease origin feature/x",
         "uv run pytest -q",
         "echo 'git push --force' > notes.txt",
+        "grep git push --force notes.txt",
+        'git commit -m "-n"',
+        "git log --oneline -n 5",
     ],
 )
 def test_guard_allows_ordinary_commands(command: str) -> None:

@@ -150,3 +150,25 @@ def test_every_sqlite_connection_is_closed(tmp_path: Path, monkeypatch: pytest.M
     for conn in opened:
         with pytest.raises(sqlite3.ProgrammingError, match="closed"):
             conn.execute("SELECT 1")
+
+
+def test_garbage_cache_file_is_moved_aside_and_recreated(tmp_path: Path) -> None:
+    path = tmp_path / "cache.db"
+    path.write_bytes(b"this is not a sqlite database at all" * 10)
+    inner = CountingProvider()
+    cached = CachedProvider(inner, path=path)
+    assert cached.get_quote("AAPL").price == 180.0
+    assert cached.stats()["quote"] == 1
+    assert cached.clear() == 1
+    corrupt = list(tmp_path.glob("cache.db.corrupt-*"))
+    assert len(corrupt) == 1, "the unreadable file is kept aside, not silently deleted"
+
+
+def test_cache_file_corrupted_after_open_is_a_miss_not_a_crash(tmp_path: Path) -> None:
+    path = tmp_path / "cache.db"
+    inner = CountingProvider()
+    cached = CachedProvider(inner, path=path)
+    cached.get_quote("AAPL")
+    path.write_bytes(b"garbage" * 100)
+    assert cached.get_quote("AAPL").price == 180.0
+    assert inner.calls == 2

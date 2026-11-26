@@ -109,3 +109,10 @@ def test_unknown_symbol_is_a_tool_error_naming_the_symbol() -> None:
 
 def test_main_is_an_entry_point() -> None:
     assert callable(mcp_server.main)
+
+
+def test_period_parameters_are_enums_in_the_tool_schema() -> None:
+    tools = {t.name: t for t in asyncio.run(mcp_server.server.list_tools())}
+    for name in ("analyze_ticker", "compare_tickers"):
+        period = tools[name].input_schema["properties"]["period"]
+        assert set(period["enum"]) == {"1mo", "3mo", "6mo", "1y", "2y", "5y", "max"}, name

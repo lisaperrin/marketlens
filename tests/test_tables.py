@@ -43,3 +43,9 @@ def test_portfolio_table_shows_positions_and_total() -> None:
     portfolio = Portfolio("USD", (Holding("AAPL", 10, 150.0), Holding("MSFT", 5, 300.0)))
     text = render(portfolio_table(value_portfolio(portfolio, provider())))
     assert "AAPL" in text and "3,800.00" in text and "Total" in text
+
+
+def test_volatility_is_rendered_without_a_sign() -> None:
+    text = render(summary_table(summarize("AAPL", provider(), "1mo")))
+    line = next(line for line in text.splitlines() if "Annualised volatility" in line)
+    assert "+" not in line and "%" in line

@@ -11,8 +11,7 @@ try:
     data = json.load(sys.stdin)
 except (json.JSONDecodeError, ValueError):
     sys.exit(0)
-path = (data.get("tool_input") or {}).get("file_path") or ""
-print(path)
+print((data.get("tool_input") or {}).get("file_path") or "")
 ')
 case "$file" in
   *.py|*.pyi) ;;
@@ -22,15 +21,15 @@ esac
 
 project="${CLAUDE_PROJECT_DIR:-$(pwd)}"
 if command -v uv >/dev/null 2>&1; then
-  run="uv run --quiet --project $project ruff"
+  run_ruff() { uv run --quiet --no-sync --project "$project" ruff "$@"; }
 elif command -v ruff >/dev/null 2>&1; then
-  run="ruff"
+  run_ruff() { ruff "$@"; }
 else
   exit 0
 fi
 
-$run format --quiet "$file" >/dev/null 2>&1
-remaining=$($run check --fix --quiet --output-format concise "$file" 2>/dev/null)
+run_ruff format --quiet "$file" >/dev/null 2>&1
+remaining=$(run_ruff check --fix --quiet --output-format concise "$file" 2>/dev/null)
 if [ -n "$remaining" ]; then
   python3 -c '
 import json, sys

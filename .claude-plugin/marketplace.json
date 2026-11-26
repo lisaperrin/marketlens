@@ -9,7 +9,6 @@
       "name": "marketlens",
       "source": "./",
       "description": "Stock market research for Claude Code, powered by yfinance.",
-      "version": "0.1.0",
       "category": "productivity",
       "tags": ["finance", "stocks", "portfolio"]
     }

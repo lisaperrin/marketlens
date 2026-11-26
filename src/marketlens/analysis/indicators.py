@@ -22,7 +22,8 @@ def rsi(close: pd.Series, window: int = 14) -> pd.Series:
 
     The first value is seeded with the simple average gain/loss over ``window`` changes;
     later values use ``avg = (prev * (window - 1) + current) / window``. Values before the
-    seed are ``NaN``. A series with no losses reads 100, one with no gains reads 0.
+    seed are ``NaN``. A series with gains and no losses reads 100, one with losses and no
+    gains reads 0, and a flat series (no moves at all) reads 50.
     """
     _check_window(window)
     change = close.diff().to_numpy(dtype="float64")

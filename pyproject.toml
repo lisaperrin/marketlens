@@ -19,7 +19,7 @@ dependencies = [
   "pandas>=2.2",
   "typer>=0.15",
   "rich>=13.0",
-  "mcp>=1.10",
+  "mcp>=2.0",
 ]
 
 [project.scripts]

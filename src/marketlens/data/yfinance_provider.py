@@ -73,12 +73,14 @@ class YFinanceProvider:
         if price is None:
             raise SymbolNotFoundError(symbol)
         previous_close = _as_float(_get(fast, "previousClose"))
+        if previous_close is None:
+            raise DataUnavailableError(f"{symbol}: Yahoo Finance returned no previous close")
         info = self._safe_info(ticker)
         return Quote(
             symbol=symbol,
             name=str(_get(info, "longName") or _get(info, "shortName") or symbol),
             price=price,
-            previous_close=previous_close if previous_close is not None else price,
+            previous_close=previous_close,
             currency=str(_get(fast, "currency") or "USD"),
             as_of=datetime.now(tz=UTC),
         )
@@ -113,6 +115,7 @@ class YFinanceProvider:
             market_cap=_as_int(_get(fast, "marketCap")),
             trailing_pe=_as_float(_get(info, "trailingPE")),
             forward_pe=_as_float(_get(info, "forwardPE")),
+            # yfinance reports dividendYield as a percentage (0.55 means 0.55 %).
             dividend_yield=_as_float(_get(info, "dividendYield")),
             beta=_as_float(_get(info, "beta")),
             sector=_get(info, "sector"),

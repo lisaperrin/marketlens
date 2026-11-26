@@ -80,7 +80,7 @@ def check(root: Path) -> list[str]:
             problems.append("marketplace plugin name does not match plugin.json")
         if entry.get("source") != "./":
             problems.append("marketplace plugin source must be './' (the repo root)")
-        if entry.get("version") != manifest.get("version"):
+        if "version" in entry and entry["version"] != manifest.get("version"):
             problems.append("marketplace plugin version does not match plugin.json")
 
     servers = loaded.get(".mcp.json", {}).get("mcpServers")

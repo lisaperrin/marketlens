@@ -50,6 +50,16 @@ def test_volatility_scales_with_sqrt_of_periods() -> None:
     assert annualized_volatility(closes) == pytest.approx(daily_std * math.sqrt(252))
 
 
+def test_volatility_known_answer() -> None:
+    # returns +10 %, -10 %: sample std = sqrt(0.02); annualised = sqrt(0.02) * sqrt(252)
+    assert annualized_volatility(series([100, 110, 99])) == pytest.approx(2.2449944, abs=1e-6)
+
+
+def test_sharpe_ratio_known_answer() -> None:
+    # returns +0.1, -0.1, +0.1: mean 1/30, sample std sqrt(0.04/3); ratio * sqrt(252)
+    assert sharpe_ratio(series([100, 110, 99, 108.9])) == pytest.approx(4.5825757, abs=1e-6)
+
+
 def test_sharpe_ratio_of_constant_series_is_nan() -> None:
     assert math.isnan(sharpe_ratio(series([50, 50, 50])))
 
