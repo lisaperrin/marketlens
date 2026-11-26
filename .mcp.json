@@ -2,7 +2,7 @@
   "mcpServers": {
     "marketlens": {
       "command": "uvx",
-      "args": ["--from", "${CLAUDE_PLUGIN_ROOT}", "marketlens-mcp"]
+      "args": ["--from", "${CLAUDE_PLUGIN_ROOT:-.}", "marketlens-mcp"]
     }
   }
 }

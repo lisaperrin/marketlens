@@ -69,7 +69,7 @@ def test_mcp_config_launches_the_server_from_the_installed_plugin() -> None:
     server = config["mcpServers"][PLUGIN_NAME]
     assert server["command"] == "uvx"
     assert server["args"][-1] == "marketlens-mcp"
-    assert "${CLAUDE_PLUGIN_ROOT}" in server["args"], "must run from the plugin checkout"
+    assert any("${CLAUDE_PLUGIN_ROOT" in a for a in server["args"]), "run from the plugin checkout"
 
 
 def test_skills_exist_with_frontmatter() -> None:
@@ -150,3 +150,15 @@ def test_validate_plugin_script_passes() -> None:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     assert module.check(ROOT) == []
+
+
+def test_package_ships_a_py_typed_marker() -> None:
+    assert (ROOT / "src" / "marketlens" / "py.typed").is_file()
+
+
+def test_mcp_launch_also_works_when_the_repo_is_opened_as_a_project() -> None:
+    config = load_json(".mcp.json")
+    args = config["mcpServers"][PLUGIN_NAME]["args"]
+    assert "${CLAUDE_PLUGIN_ROOT:-.}" in args, (
+        "project-scope .mcp.json does not substitute CLAUDE_PLUGIN_ROOT; default to the cwd"
+    )
