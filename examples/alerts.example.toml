@@ -1,0 +1,19 @@
+# Example MarketLens alert rules. Copy to ./alerts.toml and edit.
+# Every symbol gets the [defaults]; a [[rules]] entry overrides or adds thresholds for one
+# symbol, and symbols listed here are checked even if they are not on the watchlist.
+
+[defaults]
+rsi_above = 70          # RSI 14 at or above this fires
+rsi_below = 30          # RSI 14 at or below this fires
+day_change_abs = 5.0    # absolute day change in percent at or above this fires
+bollinger = true        # close outside the 20-day, 2-std Bollinger Bands fires
+
+[[rules]]
+symbol = "NVDA"
+price_below = 120.0
+price_above = 200.0
+
+[[rules]]
+symbol = "VTI"
+day_change_abs = 2.0
+bollinger = false

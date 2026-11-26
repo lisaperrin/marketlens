@@ -2,6 +2,7 @@
 
 from marketlens.report.brief import Brief, build_brief
 from marketlens.report.tables import (
+    alerts_table,
     brief_renderable,
     comparison_table,
     indicator_table,
@@ -12,6 +13,7 @@ from marketlens.report.tables import (
 
 __all__ = [
     "Brief",
+    "alerts_table",
     "brief_renderable",
     "build_brief",
     "comparison_table",

@@ -44,6 +44,7 @@ def test_server_exposes_the_five_tools() -> None:
         "compare_tickers",
         "portfolio_summary",
         "market_brief",
+        "check_alerts",
     }
 
 
@@ -126,3 +127,13 @@ def test_tools_accept_optional_benchmark() -> None:
     data = call("portfolio_summary", path=str(EXAMPLE), benchmark="VTI")
     assert data["benchmark"]["symbol"] == "VTI"
     assert call("analyze_ticker", symbol="AAPL")["benchmark"] is None
+
+
+def test_check_alerts_tool(tmp_path: Path) -> None:
+    rules = tmp_path / "alerts.toml"
+    rules.write_text('[[rules]]\nsymbol = "AAPL"\nprice_above = 100.0\n')
+    data = call("check_alerts", symbols=["MSFT"], rules_path=str(rules))
+    assert set(data["symbols"]) == {"AAPL", "MSFT"}
+    assert "price_above" in [a["kind"] for a in data["alerts"] if a["symbol"] == "AAPL"]
+    names = {tool.name for tool in asyncio.run(mcp_server.server.list_tools())}
+    assert "check_alerts" in names

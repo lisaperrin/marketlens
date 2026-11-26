@@ -171,3 +171,34 @@ def test_analyze_indicators_flag_adds_block() -> None:
     assert "MACD" not in plain
     detailed = runner.invoke(cli.app, ["analyze", "AAPL", "--indicators"]).output
     assert "MACD" in detailed and "EMA 20" in detailed
+
+
+def test_alerts_prints_no_alerts_and_exits_zero() -> None:
+    result = runner.invoke(cli.app, ["alerts", "--watchlist", "MSFT"])
+    assert result.exit_code == 0, result.output
+    assert "No alerts" in result.output
+
+
+def test_alerts_reports_triggers_and_fail_on_alert(tmp_path: Path) -> None:
+    rules = tmp_path / "alerts.toml"
+    rules.write_text('[[rules]]\nsymbol = "AAPL"\nprice_above = 100.0\n')
+    result = runner.invoke(cli.app, ["alerts", "--rules", str(rules)])
+    assert result.exit_code == 0, result.output
+    assert "AAPL" in result.output and "price_above" in result.output
+    result = runner.invoke(cli.app, ["alerts", "--rules", str(rules), "--fail-on-alert"])
+    assert result.exit_code == 3
+    assert "AAPL" in result.output
+
+
+def test_alerts_json_and_portfolio_symbols() -> None:
+    result = runner.invoke(cli.app, ["--json", "alerts", "--portfolio", str(EXAMPLE)])
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.output)
+    assert set(data["symbols"]) == {"AAPL", "MSFT", "VTI"}
+    assert isinstance(data["alerts"], list)
+
+
+def test_alerts_without_symbols_fails_clearly() -> None:
+    result = runner.invoke(cli.app, ["alerts"])
+    assert result.exit_code != 0
+    assert "watchlist" in result.output.lower()

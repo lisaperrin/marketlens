@@ -11,6 +11,7 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
+from marketlens.alerts.engine import Alert
 from marketlens.analysis.summary import Comparison, TickerSummary
 from marketlens.data.models import Quote
 from marketlens.portfolio.valuation import PortfolioValuation
@@ -273,3 +274,16 @@ def brief_renderable(brief: Brief) -> RenderableType:
     if brief.portfolio:
         parts.append(portfolio_table(brief.portfolio))
     return Group(*parts)
+
+
+def alerts_table(alerts: list[Alert], symbols: list[str]) -> RenderableType:
+    """One row per fired alert, or a one-line all-clear."""
+    if not alerts:
+        return Text(f"No alerts for {len(symbols)} symbol(s).", style="green")
+    table = _table(f"Alerts · {len(alerts)} fired across {len(symbols)} symbol(s)")
+    _col(table, "Symbol", style="bold")
+    _col(table, "Kind")
+    table.add_column("Message")
+    for alert in alerts:
+        table.add_row(alert.symbol, alert.kind, alert.message)
+    return table

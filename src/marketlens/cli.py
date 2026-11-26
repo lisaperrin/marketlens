@@ -11,6 +11,8 @@ import typer
 from rich.console import Console, Group
 
 from marketlens import __version__
+from marketlens.alerts.engine import evaluate
+from marketlens.alerts.rules import DEFAULT_RULES, load_rules
 from marketlens.analysis.summary import compare as compare_symbols
 from marketlens.analysis.summary import summarize
 from marketlens.data.cache import CachedProvider
@@ -22,6 +24,7 @@ from marketlens.portfolio.holdings import load_portfolio
 from marketlens.portfolio.valuation import value_portfolio
 from marketlens.report.brief import build_brief, quote_to_dict
 from marketlens.report.tables import (
+    alerts_table,
     brief_renderable,
     comparison_table,
     indicator_table,
@@ -211,6 +214,46 @@ def brief(
     def action() -> None:
         result = build_brief(get_provider(state.no_cache), symbols, portfolio_path)
         _emit(result.to_dict(), brief_renderable(result))
+
+    _run(action)
+
+
+@app.command()
+def alerts(
+    watchlist: Annotated[
+        str | None, typer.Option("--watchlist", "-w", help="Comma-separated symbols.")
+    ] = None,
+    portfolio_path: Annotated[
+        Path | None, typer.Option("--portfolio", help="Also check every holding in this file.")
+    ] = None,
+    rules_path: Annotated[
+        Path | None,
+        typer.Option("--rules", help="Alert rules TOML (see examples/alerts.example.toml)."),
+    ] = None,
+    fail_on_alert: Annotated[
+        bool, typer.Option("--fail-on-alert", help="Exit with code 3 when anything fired.")
+    ] = False,
+) -> None:
+    """Report thresholds that were crossed: RSI, day move, price levels, Bollinger breakouts.
+
+    Prints only what fired. Symbols come from --watchlist, --portfolio and the rules file.
+    """
+    symbols = [s.strip().upper() for s in (watchlist or "").split(",") if s.strip()]
+    if not symbols and portfolio_path is None and rules_path is None:
+        raise typer.BadParameter("provide --watchlist, --portfolio and/or --rules")
+
+    def action() -> None:
+        rules = load_rules(rules_path) if rules_path else DEFAULT_RULES
+        if portfolio_path is not None:
+            symbols.extend(h.symbol for h in load_portfolio(portfolio_path).holdings)
+        universe = sorted(set(symbols) | set(rules.symbols))
+        fired = evaluate(universe, rules, get_provider(state.no_cache))
+        _emit(
+            {"symbols": universe, "alerts": [a.to_dict() for a in fired]},
+            alerts_table(fired, universe),
+        )
+        if fail_on_alert and fired:
+            raise typer.Exit(code=3)
 
     _run(action)
 

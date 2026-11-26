@@ -16,6 +16,8 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 
 from marketlens import __version__
+from marketlens.alerts.engine import evaluate
+from marketlens.alerts.rules import DEFAULT_RULES, load_rules
 from marketlens.analysis.summary import compare, summarize
 from marketlens.data.cache import CachedProvider
 from marketlens.data.models import PERIODS, Period
@@ -117,6 +119,28 @@ def market_brief(symbols: list[str], portfolio_path: str | None = None) -> dict[
     """Quotes for a watchlist with top and bottom movers, plus an optional portfolio snapshot."""
     path = Path(portfolio_path).expanduser() if portfolio_path else None
     return build_brief(provider_factory(), symbols, path).to_dict()
+
+
+@server.tool()
+@_tool_errors
+def check_alerts(
+    symbols: list[str],
+    rules_path: str | None = None,
+    portfolio_path: str | None = None,
+) -> dict[str, Any]:
+    """Report crossed thresholds: RSI 70/30, day move of 5 % or more, Bollinger breakouts.
+
+    ``rules_path`` points at an alert rules TOML with per-symbol price levels and overrides;
+    ``portfolio_path`` adds every holding of that file to the symbols checked. Returns the
+    symbols checked and a list of alerts (empty when nothing fired).
+    """
+    rules = load_rules(Path(rules_path).expanduser()) if rules_path else DEFAULT_RULES
+    universe = [s.upper() for s in symbols]
+    if portfolio_path:
+        universe += [h.symbol for h in load_portfolio(Path(portfolio_path).expanduser()).holdings]
+    universe = sorted(set(universe) | set(rules.symbols))
+    fired = evaluate(universe, rules, provider_factory())
+    return {"symbols": universe, "alerts": [a.to_dict() for a in fired]}
 
 
 def main() -> None:
