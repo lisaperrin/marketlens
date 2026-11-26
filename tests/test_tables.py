@@ -104,3 +104,36 @@ def test_summary_timestamp_is_never_truncated_for_narrow_content() -> None:
     summary = summarize("X", prov, "1mo")
     text = render(summary_table(summary))
     assert f"{format_as_of(summary.quote.as_of)} (delayed)" in text
+
+
+def big_portfolio_valuation():  # type: ignore[no-untyped-def]
+    prov = FakeProvider(
+        quotes={
+            "VWCE.DE": make_quote("VWCE.DE", 163.76, 159.21, "EUR"),
+            "RHM.DE": make_quote("RHM.DE", 770.50, 738.80, "EUR"),
+            "ABEA.DE": make_quote("ABEA.DE", 250.85, 242.34, "EUR"),
+        }
+    )
+    portfolio = Portfolio(
+        "EUR",
+        (
+            Holding("VWCE.DE", 26.60139, 144.397),
+            Holding("RHM.DE", 1, 1198.941),
+            Holding("ABEA.DE", 6, 207.846),
+        ),
+    )
+    return value_portfolio(portfolio, prov)
+
+
+def test_portfolio_numbers_are_never_truncated_at_100_columns() -> None:
+    console = Console(width=100, record=True, force_terminal=False)
+    console.print(portfolio_table(big_portfolio_valuation()))
+    text = console.export_text()
+    assert "…" not in text
+    assert "4,356.24" in text and "1,198.94" in text and "-428.44" in text
+
+
+def test_fractional_shares_show_three_decimals() -> None:
+    text = render(portfolio_table(big_portfolio_valuation()))
+    assert "26.601" in text and "26.60139" not in text
+    assert " 6 " in text  # whole shares stay integers

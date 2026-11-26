@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from datetime import datetime
 
+from rich import box
 from rich.console import Group, RenderableType
 from rich.panel import Panel
 from rich.table import Table
@@ -23,6 +24,19 @@ def format_as_of(moment: datetime) -> str:
 
 def _as_of_caption(moment: datetime) -> str:
     return f"Data as of {format_as_of(moment)} · delayed market data"
+
+
+def _table(title: str, **kwargs: object) -> Table:
+    """A compact table whose columns are never collapsed into ellipses."""
+    return Table(title=title, box=box.SIMPLE_HEAD, pad_edge=False, **kwargs)  # type: ignore[arg-type]
+
+
+def _col(table: Table, header: str, **kwargs: object) -> None:
+    table.add_column(header, no_wrap=True, **kwargs)  # type: ignore[arg-type]
+
+
+def _shares(value: float) -> str:
+    return f"{value:g}" if value == int(value) else f"{value:.3f}".rstrip("0")
 
 
 def _money(value: float) -> str:
@@ -65,15 +79,15 @@ def _big(value: int | None) -> str:
 def quote_table(quotes: Iterable[Quote]) -> Table:
     """One row per quote: price, change and currency."""
     quotes = list(quotes)
-    table = Table(title="Quotes", show_lines=False)
+    table = _table("Quotes")
     if quotes:
         table.caption = _as_of_caption(max(q.as_of for q in quotes))
-    table.add_column("Symbol", style="bold")
+    _col(table, "Symbol", style="bold")
     table.add_column("Name")
-    table.add_column("Price", justify="right")
-    table.add_column("Change", justify="right")
-    table.add_column("Change %", justify="right")
-    table.add_column("Ccy")
+    _col(table, "Price", justify="right")
+    _col(table, "Change", justify="right")
+    _col(table, "Change %", justify="right")
+    _col(table, "Ccy")
     for quote in quotes:
         table.add_row(
             quote.symbol,
@@ -117,15 +131,10 @@ def summary_table(summary: TickerSummary) -> RenderableType:
 
 def comparison_table(comparison: Comparison) -> RenderableType:
     """Side-by-side stats, followed by the return-correlation matrix."""
-    stats = Table(title="Comparison")
-    stats.add_column("Symbol", style="bold")
-    stats.add_column("Price", justify="right")
-    stats.add_column("Return", justify="right")
-    stats.add_column("Volatility", justify="right")
-    stats.add_column("Max DD", justify="right")
-    stats.add_column("Sharpe", justify="right")
-    stats.add_column("RSI", justify="right")
-    stats.add_column("P/E", justify="right")
+    stats = _table("Comparison")
+    _col(stats, "Symbol", style="bold")
+    for header in ("Price", "Return", "Volatility", "Max DD", "Sharpe", "RSI", "P/E"):
+        _col(stats, header, justify="right")
     for s in comparison.summaries:
         stats.add_row(
             s.symbol,
@@ -140,11 +149,11 @@ def comparison_table(comparison: Comparison) -> RenderableType:
 
     if comparison.summaries:
         stats.caption = _as_of_caption(max(s.quote.as_of for s in comparison.summaries))
-    matrix = Table(title="Correlation of daily returns")
-    matrix.add_column("", style="bold")
+    matrix = _table("Correlation of daily returns")
+    _col(matrix, "", style="bold")
     symbols = [str(c) for c in comparison.correlation.columns]
     for symbol in symbols:
-        matrix.add_column(symbol, justify="right")
+        _col(matrix, symbol, justify="right")
     cells = comparison.correlation.to_numpy(dtype="float64")
     for i, row in enumerate(symbols):
         matrix.add_row(row, *(_num(float(value)) for value in cells[i]))
@@ -153,24 +162,16 @@ def comparison_table(comparison: Comparison) -> RenderableType:
 
 def portfolio_table(valuation: PortfolioValuation) -> Table:
     """Positions with P&L and weights, plus a totals row."""
-    table = Table(
-        title=f"Portfolio ({valuation.base_currency})",
-        caption=_as_of_caption(valuation.as_of),
-        show_footer=False,
+    table = _table(
+        f"Portfolio ({valuation.base_currency})", caption=_as_of_caption(valuation.as_of)
     )
-    table.add_column("Symbol", style="bold")
-    table.add_column("Shares", justify="right")
-    table.add_column("Price", justify="right")
-    table.add_column("Value", justify="right")
-    table.add_column("Cost", justify="right")
-    table.add_column("P&L", justify="right")
-    table.add_column("P&L %", justify="right")
-    table.add_column("Day %", justify="right")
-    table.add_column("Weight", justify="right")
+    _col(table, "Symbol", style="bold")
+    for header in ("Shares", "Price", "Value", "Cost", "P&L", "P&L %", "Day %", "Weight"):
+        _col(table, header, justify="right")
     for p in valuation.positions:
         table.add_row(
             p.symbol,
-            f"{p.shares:g}",
+            _shares(p.shares),
             _money(p.price),
             _money(p.market_value),
             _money(p.cost),
