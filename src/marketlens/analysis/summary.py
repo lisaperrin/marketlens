@@ -11,7 +11,9 @@ import pandas as pd
 
 from marketlens.analysis.indicators import rsi, sma
 from marketlens.analysis.stats import (
+    aligned_total_returns,
     annualized_volatility,
+    beta,
     correlation_matrix,
     max_drawdown,
     sharpe_ratio,
@@ -19,6 +21,22 @@ from marketlens.analysis.stats import (
 )
 from marketlens.data.models import Fundamentals, Period, Quote
 from marketlens.data.provider import MarketDataProvider
+
+
+@dataclass(frozen=True, slots=True)
+class BenchmarkComparison:
+    """How a ticker did against a benchmark over the same period and shared dates."""
+
+    symbol: str
+    period: str
+    benchmark_return: float
+    excess_return: float
+    beta: float | None
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serialisable mapping."""
+        data: dict[str, Any] = _clean(dataclasses.asdict(self))
+        return data
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +54,8 @@ class TickerSummary:
     sma_50: float | None
     sma_200: float | None
     rsi_14: float | None
+    benchmark: BenchmarkComparison | None = None
+    """Present only when a benchmark symbol was requested."""
 
     @property
     def symbol(self) -> str:
@@ -65,17 +85,56 @@ class Comparison:
         return {"summaries": [s.to_dict() for s in self.summaries], "correlation": matrix}
 
 
-def summarize(symbol: str, provider: MarketDataProvider, period: Period = "1y") -> TickerSummary:
-    """Fetch quote, fundamentals and history for ``symbol`` and compute the summary."""
-    summary, _ = _summarize_with_close(symbol, provider, period)
+def summarize(
+    symbol: str,
+    provider: MarketDataProvider,
+    period: Period = "1y",
+    benchmark: str | None = None,
+) -> TickerSummary:
+    """Fetch quote, fundamentals and history for ``symbol`` and compute the summary.
+
+    With ``benchmark``, the benchmark's history over the same period is fetched too and the
+    summary carries a :class:`BenchmarkComparison`.
+    """
+    benchmark_close = _benchmark_close(benchmark, provider, period)
+    summary, _ = _summarize_with_close(symbol, provider, period, benchmark_close)
     return summary
 
 
+def _benchmark_close(
+    benchmark: str | None, provider: MarketDataProvider, period: Period
+) -> tuple[str, pd.Series] | None:
+    if benchmark is None:
+        return None
+    symbol = benchmark.upper()
+    return symbol, provider.get_history(symbol, period=period)["Close"]
+
+
+def compare_to_benchmark(
+    close: pd.Series, benchmark_symbol: str, benchmark_close: pd.Series, period: str
+) -> BenchmarkComparison:
+    """Build the benchmark comparison for one close series."""
+    asset_return, benchmark_return = aligned_total_returns(close, benchmark_close)
+    return BenchmarkComparison(
+        symbol=benchmark_symbol,
+        period=period,
+        benchmark_return=benchmark_return,
+        excess_return=asset_return - benchmark_return,
+        beta=beta(close, benchmark_close),
+    )
+
+
 def _summarize_with_close(
-    symbol: str, provider: MarketDataProvider, period: Period
+    symbol: str,
+    provider: MarketDataProvider,
+    period: Period,
+    benchmark_close: tuple[str, pd.Series] | None = None,
 ) -> tuple[TickerSummary, pd.Series]:
     symbol = symbol.upper()
     close = provider.get_history(symbol, period=period)["Close"]
+    comparison = None
+    if benchmark_close is not None:
+        comparison = compare_to_benchmark(close, benchmark_close[0], benchmark_close[1], period)
     summary = TickerSummary(
         quote=provider.get_quote(symbol),
         fundamentals=provider.get_fundamentals(symbol),
@@ -88,13 +147,20 @@ def _summarize_with_close(
         sma_50=_last(sma(close, 50)),
         sma_200=_last(sma(close, 200)),
         rsi_14=_last(rsi(close, 14)),
+        benchmark=comparison,
     )
     return summary, close
 
 
-def compare(symbols: list[str], provider: MarketDataProvider, period: Period = "1y") -> Comparison:
+def compare(
+    symbols: list[str],
+    provider: MarketDataProvider,
+    period: Period = "1y",
+    benchmark: str | None = None,
+) -> Comparison:
     """Summarise each symbol and correlate their daily returns."""
-    results = [_summarize_with_close(symbol, provider, period) for symbol in symbols]
+    benchmark_close = _benchmark_close(benchmark, provider, period)
+    results = [_summarize_with_close(s, provider, period, benchmark_close) for s in symbols]
     summaries = [summary for summary, _ in results]
     closes = {summary.symbol: close for summary, close in results}
     return Comparison(summaries=summaries, correlation=correlation_matrix(closes))

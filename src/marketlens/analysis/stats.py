@@ -56,3 +56,36 @@ def correlation_matrix(closes: dict[str, pd.Series]) -> pd.DataFrame:
     """Pearson correlation of daily returns across symbols, aligned on shared dates."""
     frame = pd.DataFrame({symbol: daily_returns(series) for symbol, series in closes.items()})
     return frame.dropna(how="any").corr()
+
+
+def _aligned_returns(close: pd.Series, benchmark_close: pd.Series) -> pd.DataFrame:
+    """Daily returns of both series on the dates they share (inner join)."""
+    frame = pd.concat(
+        {"asset": daily_returns(close), "benchmark": daily_returns(benchmark_close)},
+        axis=1,
+        join="inner",
+    )
+    return frame.dropna(how="any")
+
+
+def beta(close: pd.Series, benchmark_close: pd.Series) -> float | None:
+    """Beta of ``close`` to ``benchmark_close``.
+
+    Covariance of daily returns divided by the benchmark's return variance, on shared dates.
+
+    Returns ``None`` with fewer than 3 shared return observations or a benchmark that never moves.
+    """
+    frame = _aligned_returns(close, benchmark_close)
+    if len(frame) < 3:
+        return None
+    variance = float(frame["benchmark"].var())
+    if variance == 0.0 or math.isnan(variance):
+        return None
+    covariance = float(frame["asset"].cov(frame["benchmark"]))
+    return covariance / variance
+
+
+def aligned_total_returns(close: pd.Series, benchmark_close: pd.Series) -> tuple[float, float]:
+    """Total return of each series over the date range both of them cover."""
+    shared = close.index.intersection(benchmark_close.index)
+    return total_return(close.loc[shared]), total_return(benchmark_close.loc[shared])

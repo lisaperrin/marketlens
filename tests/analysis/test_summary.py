@@ -67,3 +67,52 @@ def test_compare_returns_summaries_and_correlation() -> None:
     data = comparison.to_dict()
     assert data["correlation"]["A"]["B"] == pytest.approx(-1.0)
     assert data["summaries"][0]["symbol"] == "A"
+
+
+def test_summary_without_benchmark_has_none() -> None:
+    summary = summarize("AAPL", provider_with("AAPL", [100.0, 110.0, 105.0]))
+    assert summary.benchmark is None
+    assert summary.to_dict()["benchmark"] is None
+
+
+def test_summary_with_benchmark_has_excess_return_and_beta() -> None:
+    from marketlens.analysis.summary import BenchmarkComparison
+
+    a = [100.0, 110.0, 104.5, 106.59, 107.6559]
+    spy = [100.0, 105.0, 102.375, 103.39875, 103.9157]
+    prov = FakeProvider(
+        quotes={"A": make_quote("A", a[-1], a[-2]), "SPY": make_quote("SPY", spy[-1], spy[-2])},
+        histories={"A": make_history("A", a), "SPY": make_history("SPY", spy)},
+        fundamentals={"A": make_fundamentals("A"), "SPY": make_fundamentals("SPY")},
+    )
+    summary = summarize("A", prov, "1y", benchmark="spy")
+    bench = summary.benchmark
+    assert isinstance(bench, BenchmarkComparison)
+    assert bench.symbol == "SPY"
+    assert bench.period == "1y"
+    assert bench.benchmark_return == pytest.approx(0.039157, abs=1e-6)
+    assert bench.excess_return == pytest.approx(summary.total_return - bench.benchmark_return)
+    assert bench.beta == pytest.approx(2.0)
+    data = summary.to_dict()["benchmark"]
+    assert data["symbol"] == "SPY" and data["beta"] == pytest.approx(2.0)
+
+
+def test_benchmark_equal_to_ticker_is_neutral() -> None:
+    prov = provider_with("AAPL", [100.0, 110.0, 104.5, 106.59, 107.66])
+    bench = summarize("AAPL", prov, "1y", benchmark="AAPL").benchmark
+    assert bench is not None
+    assert bench.beta == pytest.approx(1.0)
+    assert bench.excess_return == pytest.approx(0.0)
+
+
+def test_compare_passes_benchmark_to_every_summary() -> None:
+    a = [100.0, 110.0, 104.5, 106.59, 107.6559]
+    prov = FakeProvider(
+        quotes={s: make_quote(s, a[-1], a[-2]) for s in ("A", "B", "SPY")},
+        histories={s: make_history(s, a) for s in ("A", "B", "SPY")},
+        fundamentals={s: make_fundamentals(s) for s in ("A", "B", "SPY")},
+    )
+    comparison = compare(["A", "B"], prov, "1y", benchmark="SPY")
+    assert all(
+        s.benchmark is not None and s.benchmark.symbol == "SPY" for s in comparison.summaries
+    )

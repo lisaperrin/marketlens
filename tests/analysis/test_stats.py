@@ -76,3 +76,49 @@ def test_correlation_matrix_is_over_daily_returns() -> None:
     assert matrix.loc["A", "A"] == pytest.approx(1.0)
     assert matrix.loc["A", "B"] == pytest.approx(1.0)
     assert matrix.loc["A", "C"] == pytest.approx(-1.0)
+
+
+# --- benchmark statistics ---------------------------------------------------------------
+
+from marketlens.analysis.stats import aligned_total_returns, beta  # noqa: E402
+
+
+def closes_from_returns(start: float, returns: list[float], first_day: str = "2024-01-01"):  # type: ignore[no-untyped-def]
+    values = [start]
+    for r in returns:
+        values.append(values[-1] * (1 + r))
+    index = pd.bdate_range(first_day, periods=len(values))
+    return pd.Series(values, index=index, dtype="float64")
+
+
+def test_beta_against_itself_is_one() -> None:
+    a = closes_from_returns(100, [0.1, -0.05, 0.02, 0.01])
+    assert beta(a, a) == pytest.approx(1.0)
+
+
+def test_beta_of_doubled_returns_is_two() -> None:
+    returns = [0.1, -0.05, 0.02, 0.01]
+    a = closes_from_returns(100, returns)
+    b = closes_from_returns(100, [2 * r for r in returns])
+    assert beta(b, a) == pytest.approx(2.0)
+
+
+def test_beta_against_constant_benchmark_is_none() -> None:
+    a = closes_from_returns(100, [0.1, -0.05, 0.02])
+    flat = closes_from_returns(50, [0.0, 0.0, 0.0])
+    assert beta(a, flat) is None
+
+
+def test_beta_needs_at_least_three_shared_returns() -> None:
+    a = closes_from_returns(100, [0.1, -0.05, 0.02, 0.01])
+    short = closes_from_returns(100, [0.1, -0.05], first_day="2024-01-03")
+    assert beta(a, short) is None
+
+
+def test_aligned_total_returns_use_overlap_only() -> None:
+    a = closes_from_returns(100, [0.1, 0.1, 0.1, 0.1])  # 5 days from Jan 1
+    b = closes_from_returns(100, [0.5, 0.5], first_day="2024-01-03")  # 3 days from Jan 3
+    ra, rb = aligned_total_returns(a, b)
+    # overlap is Jan 3..Jan 5: a goes 121 -> 146.41 (+21 %), b goes 100 -> 225 (+125 %)
+    assert ra == pytest.approx(0.21)
+    assert rb == pytest.approx(1.25)

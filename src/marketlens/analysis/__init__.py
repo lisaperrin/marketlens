@@ -2,19 +2,30 @@
 
 from marketlens.analysis.indicators import rsi, sma
 from marketlens.analysis.stats import (
+    aligned_total_returns,
     annualized_volatility,
+    beta,
     correlation_matrix,
     daily_returns,
     max_drawdown,
     sharpe_ratio,
     total_return,
 )
-from marketlens.analysis.summary import Comparison, TickerSummary, compare, summarize
+from marketlens.analysis.summary import (
+    BenchmarkComparison,
+    Comparison,
+    TickerSummary,
+    compare,
+    summarize,
+)
 
 __all__ = [
+    "BenchmarkComparison",
     "Comparison",
     "TickerSummary",
+    "aligned_total_returns",
     "annualized_volatility",
+    "beta",
     "compare",
     "correlation_matrix",
     "daily_returns",
