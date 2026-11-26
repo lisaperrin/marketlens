@@ -25,9 +25,9 @@ Also a Claude Code plugin.
 ╰───────────────────────────────────────────────────────────╯
 ```
 
-I built this to keep an eye on my own depot (German and US stocks plus a couple of ETFs, in
-EUR) without a brokerage app, and to have Claude pull real numbers instead of making them up.
-Data is delayed Yahoo data. Not investment advice.
+Quick reads on single stocks, side-by-side comparisons, portfolio valuation from a TOML
+file, and the same data exposed to Claude through MCP so it pulls real numbers instead of
+making them up. Data is delayed Yahoo data. Not investment advice.
 
 ## Install
 
