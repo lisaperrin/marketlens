@@ -1,18 +1,11 @@
-# MarketLens
+# marketlens
 
-Stock market research from the terminal and from Claude Code, built on
-[yfinance](https://github.com/ranaroussi/yfinance).
+CLI and MCP server for stock research on top of [yfinance](https://github.com/ranaroussi/yfinance).
+Also a Claude Code plugin.
 
 [![CI](https://github.com/lisaperrin/marketlens/actions/workflows/ci.yml/badge.svg)](https://github.com/lisaperrin/marketlens/actions/workflows/ci.yml)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
-
-I wrote MarketLens because I wanted three things in one place: a quick read on a single
-stock, a fair comparison between a few of them, and an honest view of my own depot, which
-is a mix of German, US and ETF positions quoted in euros. Along the way it became a small
-case study in building a data layer once and exposing it three ways: a typed Python
-library, a command line tool, and an MCP server that Claude can call, packaged as a
-Claude Code plugin so the same numbers show up whether I am in a terminal or in a chat.
 
 ```text
 ╭──────────────────── AAPL · Apple Inc. ────────────────────╮
@@ -32,172 +25,169 @@ Claude Code plugin so the same numbers show up whether I am in a terminal or in 
 ╰───────────────────────────────────────────────────────────╯
 ```
 
-Yahoo's data is delayed and nothing this tool prints is investment advice. It tells you
-what the numbers are; what to do about them is your call.
+I built this to keep an eye on my own depot (German and US stocks plus a couple of ETFs, in
+EUR) without a brokerage app, and to have Claude pull real numbers instead of making them up.
+Data is delayed Yahoo data. Not investment advice.
 
-## Getting started
+## Install
 
-You need Python 3.12 or newer and [uv](https://docs.astral.sh/uv/).
+Needs Python 3.12+ and [uv](https://docs.astral.sh/uv/).
 
 ```bash
-git clone https://github.com/lisaperrin/marketlens && cd marketlens
+git clone https://github.com/lisaperrin/marketlens
+cd marketlens
 uv sync
-uv run marketlens quote AAPL MSFT
-uv run marketlens analyze NVDA --period 6mo
-uv run marketlens compare AAPL MSFT VTI
-uv run marketlens brief --watchlist AAPL,MSFT,NVDA
+uv run marketlens --help
 ```
 
-Put `--json` in front of any command for machine-readable output, `--no-cache` to go
-straight to Yahoo. The cache lives in `$XDG_CACHE_HOME/marketlens/cache.db`; `marketlens
-cache stats` and `marketlens cache clear` manage it.
+## Usage
 
-### Your portfolio
+```bash
+marketlens quote AAPL MSFT
+marketlens analyze NVDA --period 6mo
+marketlens compare AAPL MSFT VTI
+marketlens portfolio                     # reads ./portfolio.toml
+marketlens brief --watchlist AAPL,MSFT --portfolio portfolio.toml
+marketlens alerts --portfolio portfolio.toml --rules alerts.toml
+marketlens cache stats
+```
 
-Holdings live in a small TOML file that stays on your machine (`portfolio.toml` is in
-`.gitignore`). Copy `examples/portfolio.example.toml` and fill in what you own:
+`--json` before the command gives JSON. `--no-cache` skips the local cache.
+
+Periods: `1mo 3mo 6mo 1y 2y 5y max`.
+
+### Optional flags
+
+```bash
+marketlens analyze NVDA -b SPY           # benchmark return, excess return, beta
+marketlens compare AAPL MSFT -b VWCE.DE  # Excess and Beta columns
+marketlens portfolio -b VWCE.DE          # benchmark day move + weighted portfolio beta
+marketlens analyze NVDA --indicators     # EMA 20, MACD, Bollinger Bands
+```
+
+Benchmark stats use the trading days both series have in common. The analyze panel shows a
+"Signals" row when the close is outside the Bollinger Bands, MACD or SMA 50/200 crossed in
+the last 5 sessions, or RSI is past 70/30. Otherwise the row isn't there.
+
+### portfolio.toml
 
 ```toml
 base_currency = "EUR"
-benchmark = "VWCE.DE"          # optional
+benchmark = "VWCE.DE"      # optional, used by `portfolio` only
 
 [[holdings]]
 symbol = "ALV.DE"
 shares = 5
-cost_basis = 250.00            # average price paid per share
+cost_basis = 250.00        # avg price paid per share
 ```
 
-`uv run marketlens portfolio` then prints each position with market value, profit and
-loss, weight and today's move, plus totals. Use the ticker of the exchange you actually
-bought on (`ABEA.DE` for Alphabet on Xetra, not `GOOGL`) so prices and your cost basis are
-in the same currency; the tool does not convert currencies.
+Use the ticker of the listing you bought (e.g. `ABEA.DE` for Alphabet on Xetra). There is no
+FX conversion, so mixed currencies will add up to nonsense. The file is gitignored.
 
-### The parts you have to ask for
+### alerts.toml
 
-By default `analyze`, `compare` and `portfolio` print the same panels they always have.
-A few things are switched on explicitly, because they are only useful when you want them:
+```toml
+[defaults]
+rsi_above = 70
+rsi_below = 30
+day_change_abs = 5.0       # percent
+bollinger = true
 
-```bash
-uv run marketlens analyze NVDA --benchmark SPY     # benchmark return, excess return, beta
-uv run marketlens compare AAPL MSFT -b VWCE.DE     # adds Excess and Beta columns
-uv run marketlens portfolio -b VWCE.DE             # benchmark day move, portfolio beta
-uv run marketlens analyze NVDA --indicators        # EMA 20, MACD, Bollinger Bands
-uv run marketlens alerts --portfolio portfolio.toml --rules alerts.toml
+[[rules]]
+symbol = "NVD.DE"
+price_below = 120.0
+price_above = 200.0
 ```
 
-Beta and excess return are computed over the trading days both series share, so a
-benchmark with a shorter history does not quietly distort the comparison. The analyze
-panel adds a *Signals* row on its own only when there is something to say: a close outside
-the Bollinger Bands, a MACD or SMA 50/200 crossover within the last five sessions, or an
-RSI beyond 70 or 30. A line that flickers around zero is not reported as a crossover.
+`alerts` prints only what fired. Symbols it can't fetch are listed as skipped; the rest still
+run. `--fail-on-alert` exits 3 if anything fired (for cron). See
+`examples/alerts.example.toml`.
 
-`alerts` is the piece I run from cron. It prints only what crossed a threshold (RSI 70/30,
-a day move of five percent or more, Bollinger breakouts, and any per-symbol price levels
-from `alerts.toml`), names symbols it could not fetch instead of aborting, and with
-`--fail-on-alert` exits with code 3 so a shell script can decide what to do next.
-
-## From Claude Code
-
-The repository doubles as a Claude Code plugin. Inside Claude Code:
+## Claude Code
 
 ```text
 /plugin install marketlens --marketplace lisaperrin/marketlens
 ```
 
-That gives Claude an MCP server with seven tools (`get_quote`, `analyze_ticker`,
-`compare_tickers`, `portfolio_summary`, `market_brief`, `check_alerts`, `get_statements`),
-five user-facing skills (`/marketlens:analyze-ticker`, `compare-tickers`,
-`portfolio-review`, `market-brief`, `check-alerts`), two agents (`market-analyst` for
-multi-step research notes, `quant-reviewer` for checking indicator maths against textbook
-definitions), and two hooks. One hook announces the tools at session start; the other
-notices cashtags like `$NVDA` in a prompt and reminds Claude to call the live tools instead
-of quoting prices from memory. The server starts via `uvx` from the installed plugin
-folder, so there is nothing to configure beyond having uv on your PATH.
+Installs:
 
-The skills are deliberately opinionated about honesty: fractions versus percentages are
-spelled out, `None` is reported as "not available" rather than guessed, and every note ends
-with the data timestamp.
+- MCP server `marketlens` with `get_quote`, `analyze_ticker`, `compare_tickers`,
+  `portfolio_summary`, `market_brief`, `check_alerts`, `get_statements`. Started with
+  `uvx` from the plugin directory, so uv has to be on PATH. First start takes a minute.
+- Skills: `/marketlens:analyze-ticker`, `compare-tickers`, `portfolio-review`,
+  `market-brief`, `check-alerts`. `add-indicator` is for working on this repo.
+- Agents: `market-analyst` (research notes from live data), `quant-reviewer` (checks
+  indicator maths and tests).
+- Hooks: one prints the tool list at session start, one spots `$TICKER` in a prompt and
+  tells Claude to use the tools instead of recalling prices.
 
-## How it is built
+## Layout
 
 ```text
 src/marketlens/
-├── data/          provider protocol, yfinance provider, SQLite cache, fake provider for tests
-├── analysis/      pure functions on a Close series: returns, risk, beta, SMA/EMA, RSI, MACD, Bollinger
-├── portfolio/     TOML holdings loader, valuation, benchmark comparison
-├── alerts/        threshold rules (TOML) and evaluation
-├── report/        rich tables and the daily brief; to_dict() feeds --json and MCP
-├── cli.py         Typer commands
-└── mcp_server.py  the same operations as MCP tools
+  data/         MarketDataProvider protocol, YFinanceProvider, CachedProvider (sqlite), FakeProvider
+  analysis/     indicators.py (SMA, EMA, RSI, MACD, Bollinger), stats.py (returns, vol, drawdown,
+                Sharpe, beta, correlation), summary.py (TickerSummary, signals)
+  portfolio/    holdings.py (TOML), valuation.py
+  alerts/       rules.py (TOML), engine.py
+  report/       rich tables, brief
+  cli.py        Typer
+  mcp_server.py MCPServer, same functions as the CLI
 ```
 
-Everything that touches Yahoo goes through one `MarketDataProvider` protocol. The real
-implementation wraps yfinance; a caching decorator stores results in SQLite with
-per-kind lifetimes (quotes 15 minutes, price history an hour, fundamentals and annual
-statements a day); and a `FakeProvider` serves canned frames so the whole test suite,
-including the MCP tools and the shell hooks, runs offline in about three seconds. The
-cache survives corrupted files by moving them aside, and every yfinance transport failure
-is turned into one readable error rather than a traceback.
+All data access goes through `MarketDataProvider`. `CachedProvider` wraps any provider
+with a SQLite cache (quotes 15 min, history 1 h, fundamentals and statements 24 h).
+`FakeProvider` serves fixed frames; tests never hit the network.
 
-The analysis package is where I was most careful. Each statistic has a known-answer test
-with a value worked out by hand: RSI uses Wilder's smoothing and is checked against a
-two-period example you can verify on paper, volatility is sample standard deviation
-scaled by the square root of 252, drawdown is a negative fraction, beta is the covariance
-of daily returns over the benchmark's variance on an inner join of dates. Where a function
-cannot produce a meaningful number (a constant series, too few points, no overlapping
-dates) it returns `None` and the tables print a dash.
+Conventions, since they bite otherwise:
 
-Models are frozen dataclasses. The CLI and the MCP server are thin: both call the same
-functions and the same `to_dict()` methods, which is why `--json` output and tool output
-never drift apart.
+- `total_return`, `annualized_volatility`, `max_drawdown`, `pnl_pct`, `weight` are
+  fractions. `change_pct`, `day_change_pct`, `dividend_yield` are percentages.
+- `None` means Yahoo didn't have it. Nothing is estimated or filled in.
+- RSI is Wilder smoothing. Volatility is sample std × √252. Beta is cov/var of daily
+  returns on an inner join of dates, `None` under 3 shared points.
+- Errors subclass `MarketLensError`. CLI prints one line and exits 1. MCP raises `ToolError`.
 
-The design notes for each release are in [`docs/design.md`](docs/design.md), with the
-task-by-task plans next to them. They are the documents I actually built from, not
-after-the-fact write-ups.
-
-## History
-
-**0.1** was the core: provider and cache, the analysis functions, portfolio valuation,
-the CLI, the MCP server and the plugin, with CI on Python 3.12 and 3.13.
-
-**0.2** added the opt-in features above: benchmark comparison, EMA, MACD and Bollinger
-Bands with the signals logic, and the alerts command. The rule for this release was that
-default output must not change; the test suite asserts the absence of the new rows and
-columns when the options are off.
-
-**0.3** added `get_statements`, which returns annual balance sheet, income statement and
-cash flow lines per fiscal year (net PPE, capex, R&D, SG&A, gross debt, cash, shares
-outstanding and the year-end close) exactly as Yahoo publishes them. I built it for
-[firmvalue](https://github.com/lisaperrin/firm-value-decomposition), a structural
-decomposition of firm value that uses MarketLens as its live data layer. Agreeing the
-record shape with a downstream consumer before writing it, and shipping `STATEMENT_FIELDS`
-so the consumer can schema-check at import time, was a useful exercise in treating a
-dataclass as an interface.
-
-## Limitations
-
-Yahoo is a free, delayed source with occasional gaps; the tool reports gaps rather than
-filling them. There is no currency conversion, no intraday data, no backtesting and no
-order execution, and none of those are planned. Headcount comes as a single latest value
-because yfinance keeps no history for it.
+`get_statements(symbol, years=4)` (library and MCP, no CLI command) returns per-fiscal-year
+balance sheet / income / cash flow lines: net PPE, capex (as a positive number), R&D,
+SG&A, total debt, cash, shares outstanding, close at year end. Oldest first, as reported.
+Written for [firmvalue](https://github.com/lisaperrin/firm-value-decomposition), which uses
+this package as its data source. `STATEMENT_FIELDS` has the field names. If you type
+against `Statements` with a `Protocol`, use read-only properties; frozen dataclass fields
+don't satisfy settable attributes under strict mypy.
 
 ## Development
 
 ```bash
 uv sync --all-groups
-uv run pytest -q
+uv run pytest -q                                  # ~225 tests, offline, ~3 s
 uv run ruff check . && uv run ruff format --check . && uv run mypy
 uv run python scripts/validate_plugin.py --with-claude-cli
 ```
 
-Ruff at 100 columns, mypy in strict mode, pytest with warnings turned into errors.
-Two project hooks in `.claude/settings.json` format Python files after each edit and refuse
-`git push --force`, `--no-verify` and `git reset --hard`. Conventional commit messages.
-If you type against `Statements` structurally with a `Protocol`, declare its members as
-read-only properties; frozen-dataclass fields are read-only and strict mypy will tell you.
+ruff, line length 100. mypy strict. pytest treats warnings as errors. CI runs on 3.12 and
+3.13. Every indicator and statistic has a test with a value computed by hand; see
+`tests/analysis/`. `.claude/settings.json` has two hooks for people working on this in
+Claude Code: ruff after every edit, and a block on `git push --force`, `--no-verify` and
+`git reset --hard`.
 
-## Licence
+Design notes and the plans I worked from: `docs/design.md`, `docs/plan.md`,
+`docs/plan-0.2.md`.
 
-MIT. Market data comes from Yahoo Finance through yfinance and is subject to
-[Yahoo's terms](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html). This project
-is not affiliated with Yahoo.
+## Changelog
+
+- 0.3.0: `get_statements`, `Fundamentals.employees`, `py.typed`.
+- 0.2.0: benchmark comparison, EMA/MACD/Bollinger + signals, `alerts`.
+- 0.1.0: provider + cache, analysis, portfolio, CLI, MCP server, plugin.
+
+## Known gaps
+
+No FX. No intraday. No backtests. Headcount is a single latest number (yfinance has no
+history). Yahoo line names differ for banks and insurers, so some statement fields come back
+`None` there.
+
+## License
+
+MIT. Yahoo data via yfinance, subject to
+[Yahoo's terms](https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html). Not affiliated
+with Yahoo.
